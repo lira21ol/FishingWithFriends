@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "926474210584",
+    "project_id": "fishingwithfriends-1ca5f",
+    "storage_bucket": "fishingwithfriends-1ca5f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:926474210584:android:886bb7ab75ef95cfcae26d",
+        "android_client_info": {
+          "package_name": "com.example.comrasmusfishingwithfriends"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlMwlYclgFNF841Htw-syMU64SmWoFbEw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
