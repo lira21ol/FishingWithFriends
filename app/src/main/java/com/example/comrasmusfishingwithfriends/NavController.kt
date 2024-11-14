@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
+
 
 @Composable
 fun FishingApp(navController: NavHostController) {
@@ -22,7 +22,9 @@ fun FishingApp(navController: NavHostController) {
         }
         composable("fishing_game_screen") {
 
-            FishingGameScreen()
+            FishingGameScreen(
+                currentPlayer = TODO()
+            )
         }
     }
 }

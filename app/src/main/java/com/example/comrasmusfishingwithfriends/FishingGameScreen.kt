@@ -1,8 +1,6 @@
 package com.example.comrasmusfishingwithfriends
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeOut
@@ -13,13 +11,13 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ktx.toObject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -27,7 +25,7 @@ val db: FirebaseFirestore
     get() = FirebaseFirestore.getInstance()
 
 @Composable
-fun FishingGameScreen() {
+fun FishingGameScreen(currentPlayer: Player) {
     var isFishing by remember { mutableStateOf(false) }
     var catchResult by remember { mutableStateOf("Waiting for fish...") }
     var fishCaught by remember { mutableStateOf<Fish?>(null) }
@@ -36,13 +34,10 @@ fun FishingGameScreen() {
     val reeling = remember { Reeling() }
     var isFishCaught by remember { mutableStateOf(false) }
     var points by remember { mutableIntStateOf(0) }
-    val playerId by remember { mutableStateOf("") }
-    var playerName by remember { mutableStateOf("") }
-
+    val scope = rememberCoroutineScope()
+    var currentPlayer by remember { mutableStateOf<Player?>(null) }
     val rodIdleImage = painterResource(id = R.drawable.rod)
     val rodCastingImage = painterResource(id = R.drawable.rod)
-
-    val scope = rememberCoroutineScope()
 
     Box(
         modifier = Modifier
@@ -130,7 +125,10 @@ fun FishingGameScreen() {
                             reeling.stopReeling()
                             isFishing = false
 
-                            updatePlayerScore(playerId, points)
+                            currentPlayer?.let {
+                                it.score = points // Update the score in Player object
+                                updatePlayerScore(it) // Pass the updated Player object
+                            }
                         }
                     },
                     enabled = reeling.rollProgress < 1f,
@@ -147,11 +145,17 @@ fun FishingGameScreen() {
     }
 }
 
-fun updatePlayerScore(playerId: String, newScore: Int) {
-    val playerRef = db.collection("players").document(playerId)
-    playerRef.update("score", newScore)
+// Update Player score function
+fun updatePlayerScore(player: Player) {
+    val playerRef = FirebaseFirestore.getInstance().collection("players").document(player.playerId)
+    playerRef.update("score", player.score) // Update score using player.score
+        .addOnSuccessListener {
+            Log.d("FishingGame", "Successfully updated player score")
+        }
+        .addOnFailureListener { e ->
+            Log.e("FishingGame", "Error updating player score", e)
+        }
 }
-
 @Composable
 fun FishDisplay(fish: Fish, isReelingComplete: Boolean) {
     val fishImages = mapOf(
@@ -201,8 +205,3 @@ fun FishDisplay(fish: Fish, isReelingComplete: Boolean) {
     }
 }
 
-@Preview
-@Composable
-fun PreviewFishingGame() {
-    FishingGameScreen()
-}

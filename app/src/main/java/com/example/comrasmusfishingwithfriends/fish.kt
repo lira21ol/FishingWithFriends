@@ -1,10 +1,10 @@
 package com.example.comrasmusfishingwithfriends
 data class Fish(
-    val type: String,  // Explicitly take the type from the outside (not random)
-    val weight: Double = (1..10).random().toDouble(),  // Random weight between 1 and 10 kg
-    val points: Int  // Points are assigned based on the type
+    val type: String,
+    val weight: Double = (1..10).random().toDouble(),
+    val points: Int
 ) {
-    // Constructor to create a Fish object based on the random type and calculated points
+
     constructor() : this(
         type = getRandomFishType(),
         points = getFishPoints(getRandomFishType())
