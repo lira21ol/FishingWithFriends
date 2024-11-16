@@ -1,17 +1,24 @@
 package com.example.comrasmusfishingwithfriends
 
+import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.google.firebase.firestore.FirebaseFirestore
-import java.util.UUID
-
+import com.google.android.exoplayer2.ExoPlayer
+import com.google.android.exoplayer2.ui.PlayerView
+import com.google.android.exoplayer2.MediaItem
+import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
 
 @Composable
 fun UserCreationScreen(onUserCreated: (Player) -> Unit) {
@@ -19,61 +26,139 @@ fun UserCreationScreen(onUserCreated: (Player) -> Unit) {
     var isCreatingUser by remember { mutableStateOf(false) }
     var creationError by remember { mutableStateOf<String?>(null) }
 
-    val db = FirebaseFirestore.getInstance()
+    FirebaseFirestore.getInstance()
 
     fun isUserNameValid(): Boolean {
         return fisherName.trim().isNotEmpty()
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
     ) {
-        OutlinedTextField(
-            value = fisherName,
-            onValueChange = { fisherName = it },
-            label = { Text("Name your fisher:") },
-            modifier = Modifier.fillMaxWidth()
+        AndroidView(
+            factory = { context ->
+                val player = ExoPlayer.Builder(context).build()
+                val mediaItem = MediaItem.fromUri("android.resource://${context.packageName}/raw/startvideo")
+                player.setMediaItem(mediaItem)
+                player.prepare()
+                player.playWhenReady = true
+                val playerView = PlayerView(context).apply {
+                    this.player = player
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    layoutParams = android.widget.RelativeLayout.LayoutParams(
+                        android.widget.RelativeLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.RelativeLayout.LayoutParams.MATCH_PARENT
+                    )
+                }
+                playerView
+            },
+            modifier = Modifier
+                .fillMaxSize()
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.CenterHorizontally )  {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(40.dp)
+            ) {
+                Text(
+                    text = "Fishing With Friends Game, by Rallter",
+                    style = TextStyle(
+                        color = Color(0xFF90EE90),
+                        fontSize = 30.sp,
 
-        Button(
-            onClick = {
-                if (isUserNameValid()) {
-                    isCreatingUser = true
-                    creationError = null
+                    ),
+                    modifier = Modifier.padding(top = 32.dp, bottom = 16.dp)
+                )
+            }
 
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
 
-                    val newPlayer = Player(playerId = fisherName, playerName = fisherName, score = 0)
+            ) {
+                Text(
+                    text = "Name your fisher:",
+                    style = TextStyle(
+                        color = Color(0xFF90EE90),
+                        fontSize = 30.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    ),
+                    modifier = Modifier.padding(top = 32.dp)
+                )
+            }
 
+            OutlinedTextField(
+                value = fisherName,
+                onValueChange = { fisherName = it },
+                label = {},
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                textStyle = TextStyle(
+                    color = Color(0xFFD3B1F3),
+                    fontSize = 30.sp
+                )
+            )
 
-                    addPlayerToFirestore(newPlayer) { success ->
-                        if (success) {
-                            onUserCreated(newPlayer)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        if (isUserNameValid()) {
+                            isCreatingUser = true
+                            creationError = null
+
+                            val newPlayer = Player(playerId = fisherName, playerName = fisherName, score = 0)
+
+                            addPlayerToFirestore(newPlayer) { success ->
+                                if (success) {
+                                    onUserCreated(newPlayer)
+                                } else {
+                                    creationError = "Error creating user. Please try again."
+                                }
+                                isCreatingUser = false
+                            }
                         } else {
-                            creationError = "Error creating user. Please try again."
+                            creationError = "Please enter a valid name."
                         }
-                        isCreatingUser = false
-                    }
-                } else {
-                    creationError = "Please enter a valid name."
+                    },
+                    enabled = !isCreatingUser && fisherName.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(
+                        contentColor = Color(0xFFD3B1F3)
+                    ),
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .fillMaxWidth()
+                ) {
+                    Text(
+                        text = if (isCreatingUser) "Creating..." else "Create User",
+                        style = TextStyle(
+                            color = Color(0xFFD3B1F3),
+                            fontSize = 30.sp
+                        )
+                    )
                 }
-            },
-            enabled = !isCreatingUser && fisherName.isNotBlank()
-        ) {
-            Text(if (isCreatingUser) "Creating..." else "Create User")
-        }
+            }
 
-        creationError?.let {
-            Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
+            creationError?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
+            }
         }
     }
 }
-
 
 fun addPlayerToFirestore(player: Player, onComplete: (Boolean) -> Unit) {
     val playerData = hashMapOf(
@@ -81,7 +166,7 @@ fun addPlayerToFirestore(player: Player, onComplete: (Boolean) -> Unit) {
         "playerName" to player.playerName,
         "score" to player.score
     )
-    db.collection("players").document(player.playerId).set(playerData)
+    FirebaseFirestore.getInstance().collection("players").document(player.playerId).set(playerData)
         .addOnSuccessListener {
             onComplete(true)
         }
