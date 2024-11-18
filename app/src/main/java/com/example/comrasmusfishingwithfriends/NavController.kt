@@ -5,26 +5,32 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 
-
 @Composable
 fun FishingApp(navController: NavHostController) {
+    NavHost(navController = navController, startDestination = "user_creation_screen") {
+        composable("user_creation_screen") {
+            UserCreationScreen(onUserCreated = { player ->
+                navController.navigate("start_screen")
+            }, navController = navController)
+        }
 
-    NavHost(navController = navController, startDestination = "start_screen") {
         composable("start_screen") {
             StartScreen(
                 onGoFishingClick = {
                     navController.navigate("fishing_game_screen")
                 },
                 onGoFishTogetherClick = {
-                    navController.navigate("fishing_game_screen")
+                    navController.navigate("multiplayer_fishing_game_screen")
                 }
             )
         }
+
         composable("fishing_game_screen") {
 
-            FishingGameScreen(
-                currentPlayer = TODO()
-            )
+            FishingGameScreen(currentPlayer = Player("playerId", "Fisher", 0)) //route till soloplayer
         }
-    }
-}
+
+        composable("multiplayer_fishing_game_screen") {
+            MultiplayerFishingGameScreen()  // route till MULTIPLAYER
+        }
+    }}

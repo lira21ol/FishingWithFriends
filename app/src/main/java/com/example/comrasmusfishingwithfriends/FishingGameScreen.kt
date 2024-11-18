@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
@@ -13,12 +14,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import com.google.android.exoplayer2.C
+import com.google.android.exoplayer2.DefaultLoadControl
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
@@ -41,9 +46,10 @@ fun FishingGameScreen(currentPlayer: Player) {
     var isFishCaught by remember { mutableStateOf(false) }
     var points by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
-    var currentPlayer by remember { mutableStateOf<Player?>(null) }
     val rodIdleImage = painterResource(id = R.drawable.rod)
     val rodCastingImage = painterResource(id = R.drawable.rod)
+    var showSaveButton by remember { mutableStateOf(false) }
+    var saveStatus by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
     val density = LocalDensity.current.density
@@ -51,29 +57,48 @@ fun FishingGameScreen(currentPlayer: Player) {
     val screenHeightPx = displayMetrics.heightPixels / density
     val screenHeightDp = screenHeightPx.dp
     val twoThirdsHeight = screenHeightDp * 2 / 3f
-
     val player = remember {
-        ExoPlayer.Builder(context).build().apply {
-            val mediaItem = MediaItem.fromUri("android.resource://${context.packageName}/raw/fishingbakgrund")
-            setMediaItem(mediaItem)
-            prepare()
-            playWhenReady = true
-            repeatMode = ExoPlayer.REPEAT_MODE_ONE
+        ExoPlayer.Builder(context)
+            .setLoadControl(
+                DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(
+                        DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+                        DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+                        DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS / 2,
+                        DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS / 2
+                    )
+                    .build()
+            )
+            .build().apply {
+                val mediaItem = MediaItem.fromUri("android.resource://${context.packageName}/raw/fishingbakgrund")
+                setMediaItem(mediaItem)
+                prepare()
+                playWhenReady = true
+                repeatMode = ExoPlayer.REPEAT_MODE_ONE
+                videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
+            }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            player.release()
         }
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .background(Color(0xFFF6AC87))
     ) {
         AndroidView(
             factory = { context ->
-                val playerView = PlayerView(context).apply {
+                PlayerView(context).apply {
                     this.player = player
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    useController = false  // Inaktivera standardkontroller
+                    setKeepContentOnPlayerReset(true)
+                    useArtwork = false
                 }
-                playerView
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -162,9 +187,7 @@ fun FishingGameScreen(currentPlayer: Player) {
                         reeling.stopReeling()
                         isFishing = false
 
-                        currentPlayer?.let {
-                            it.score = points
-                            updatePlayerScore(it)
+                        updatePlayerScore(currentPlayer) {    // Named parameters
                         }
                     }
                 },
@@ -178,17 +201,49 @@ fun FishingGameScreen(currentPlayer: Player) {
         Spacer(modifier = Modifier.height(20.dp))
 
         CatchResult(isSuccessful = isCatchSuccessful, fish = fishCaught)
+
+        if (points > 0 && !isFishing) {
+            Spacer(modifier = Modifier.height(20.dp))
+            
+            Button(
+                onClick = {
+                    updatePlayerScore(currentPlayer) { success ->  // Använd parameter direkt
+                            if (success) {
+                                saveStatus = "Poäng sparade!"
+                                showSaveButton = false
+                            } else {
+                                saveStatus = "Kunde inte spara poäng. Försök igen."
+                            }
+                        }
+                },
+                enabled = !showSaveButton,
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text("Spara poäng")
+            }
+            
+            saveStatus?.let {
+                Text(
+                    text = it,
+                    color = if (it.startsWith("Poäng")) Color.Green else Color.Red,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        }
     }
 }
 
-fun updatePlayerScore(player: Player) {
+
+fun updatePlayerScore(player: Player, onComplete: (Boolean) -> Unit) {
     val playerRef = FirebaseFirestore.getInstance().collection("players").document(player.playerId)
     playerRef.update("score", player.score)
         .addOnSuccessListener {
             Log.d("FishingGame", "Successfully updated player score")
+            onComplete(true)
         }
         .addOnFailureListener { e ->
             Log.e("FishingGame", "Error updating player score", e)
+            onComplete(false)
         }
 }
 
@@ -239,4 +294,12 @@ fun FishDisplay(fish: Fish, isReelingComplete: Boolean) {
             )
         }
     }
+}
+@Preview(showBackground = true)
+@Composable
+fun PreviewFishingGameScreen() {
+    // Pass a sample player object for the preview
+    FishingGameScreen(
+        currentPlayer = Player(playerId = "1", playerName = "Player One", score = 0)
+    )
 }

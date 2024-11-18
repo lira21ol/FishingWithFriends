@@ -1,6 +1,5 @@
 package com.example.comrasmusfishingwithfriends
 
-import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -14,6 +13,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.rememberNavController
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.ui.PlayerView
@@ -21,7 +22,7 @@ import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
 
 @Composable
-fun UserCreationScreen(onUserCreated: (Player) -> Unit) {
+fun UserCreationScreen(onUserCreated: (Player) -> Unit, navController: NavHostController) {
     var fisherName by remember { mutableStateOf("") }
     var isCreatingUser by remember { mutableStateOf(false) }
     var creationError by remember { mutableStateOf<String?>(null) }
@@ -62,7 +63,8 @@ fun UserCreationScreen(onUserCreated: (Player) -> Unit) {
                 .fillMaxSize()
                 .padding(16.dp),
             verticalArrangement = Arrangement.Top,
-            horizontalAlignment = Alignment.CenterHorizontally )  {
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -73,7 +75,6 @@ fun UserCreationScreen(onUserCreated: (Player) -> Unit) {
                     style = TextStyle(
                         color = Color(0xFF90EE90),
                         fontSize = 30.sp,
-
                     ),
                     modifier = Modifier.padding(top = 32.dp, bottom = 16.dp)
                 )
@@ -82,7 +83,6 @@ fun UserCreationScreen(onUserCreated: (Player) -> Unit) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-
             ) {
                 Text(
                     text = "Name your fisher:",
@@ -126,6 +126,8 @@ fun UserCreationScreen(onUserCreated: (Player) -> Unit) {
                             addPlayerToFirestore(newPlayer) { success ->
                                 if (success) {
                                     onUserCreated(newPlayer)
+                                    // After user creation, navigate to the start screen
+                                    navController.navigate("start_screen")
                                 } else {
                                     creationError = "Error creating user. Please try again."
                                 }
@@ -174,4 +176,11 @@ fun addPlayerToFirestore(player: Player, onComplete: (Boolean) -> Unit) {
             Log.e("UserCreationScreen", "Error adding player to Firestore", e)
             onComplete(false)
         }
+}
+
+@Preview
+@Composable
+fun PreviewUserCreationScreen() {
+
+    UserCreationScreen(onUserCreated = {}, navController = rememberNavController())
 }

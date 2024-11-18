@@ -7,10 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.navigation.compose.rememberNavController
 import com.example.comrasmusfishingwithfriends.ui.theme.ComrasmusfishingwithfriendsTheme
 
 class MainActivity : ComponentActivity() {
@@ -19,20 +16,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ComrasmusfishingwithfriendsTheme {
-
-                var currentPlayer by remember { mutableStateOf<Player?>(null) }
+                val navController = rememberNavController()
 
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    if (currentPlayer == null) {
-
-                        UserCreationScreen { newPlayer ->
-
-                            currentPlayer = newPlayer
-                        }
-                    } else {
-
-                        FishingGameScreen(currentPlayer = currentPlayer!!)
-                    }
+                    FishingApp(navController = navController)
                 }
             }
         }
