@@ -28,6 +28,7 @@ import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
 import com.google.android.exoplayer2.ui.PlayerView
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.delay
@@ -45,7 +46,7 @@ fun FishingGameScreen(currentPlayer: Player) {
     var isCasting by remember { mutableStateOf(false) }
     val reeling = remember { Reeling() }
     var isFishCaught by remember { mutableStateOf(false) }
-    var points by remember { mutableIntStateOf(0) }
+    var points by remember { mutableIntStateOf(currentPlayer.score) }  // Use initial score from currentPlayer
     val scope = rememberCoroutineScope()
     val rodIdleImage = painterResource(id = R.drawable.rod)
     val rodCastingImage = painterResource(id = R.drawable.rod)
@@ -96,7 +97,7 @@ fun FishingGameScreen(currentPlayer: Player) {
                 PlayerView(context).apply {
                     this.player = player
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                    useController = false  // Inaktivera standardkontroller
+                    useController = false  // Disable default controls
                     setKeepContentOnPlayerReset(true)
                     useArtwork = false
                 }
@@ -188,7 +189,16 @@ fun FishingGameScreen(currentPlayer: Player) {
                         reeling.stopReeling()
                         isFishing = false
 
-                        updatePlayerScore(currentPlayer) {    // Named parameters
+                        // Update the score directly on the currentPlayer object
+                        currentPlayer.score = points  // Update the score of the currentPlayer
+
+                        // Call the function to update the score, passing the player's ID and the updated currentPlayer object
+                        updatePlayerScore(currentPlayer.playerId, currentPlayer) { success ->
+                            if (success) {
+                                saveStatus = "Poäng sparade!"  // Show success message
+                            } else {
+                                saveStatus = "Kunde inte spara poäng. Försök igen."  // Show failure message
+                            }
                         }
                     }
                 },
@@ -206,22 +216,6 @@ fun FishingGameScreen(currentPlayer: Player) {
         if (points > 0 && !isFishing) {
             Spacer(modifier = Modifier.height(20.dp))
 
-            Button(
-                onClick = {
-                    updatePlayerScore(currentPlayer) { success ->  // Använd parameter direkt
-                            if (success) {
-                                saveStatus = "Poäng sparade!"
-                                showSaveButton = false
-                            } else {
-                                saveStatus = "Kunde inte spara poäng. Försök igen."
-                            }
-                        }
-                },
-                enabled = !showSaveButton,
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text("Spara poäng")
-            }
 
             saveStatus?.let {
                 Text(
@@ -234,43 +228,41 @@ fun FishingGameScreen(currentPlayer: Player) {
     }
 }
 
+fun updatePlayerScore(playerId: String, player: Player, onComplete: (Boolean) -> Unit) {
+    // Reference to the player's document inside the 'players' subcollection
+    val playerRef = FirebaseFirestore.getInstance()
+        .collection("Players")  // The main collection
+        .document(playerId)  // The player document ID (player's name or ID)
 
-fun updatePlayerScore(player: Player, onComplete: (Boolean) -> Unit) {
-    val playerRef = FirebaseFirestore.getInstance().collection("players").document(player.playerId)
-
-    // Skapa ett Map med spelardata
-    val playerData = hashMapOf(
-        "playerId" to player.playerId,
-        "playerName" to player.playerName,
-        "score" to player.score
-    )
-
-    // Använd set() med merge=true för att skapa eller uppdatera dokumentet
-    playerRef.set(playerData, SetOptions.merge())
-        .addOnSuccessListener {
-            Log.d("FishingGame", "Successfully updated player score")
-            onComplete(true)
-        }
-        .addOnFailureListener { e ->
-            Log.e("FishingGame", "Error updating player score", e)
-            onComplete(false)
-        }
-}
-
-fun fetchUpdatedPlayerScore(playerId: String, onUpdate: (Int) -> Unit) {
-    val playerRef = db.collection("players").document(playerId)
+    // Get the current score and update it
     playerRef.get()
         .addOnSuccessListener { document ->
-            if (document != null) {
-                val updatedScore = document.getLong("score")?.toInt() ?: 0
-                onUpdate(updatedScore) // Uppdatera poängen i UI
+            if (document.exists()) {
+                // Get the current score from the document
+                val currentScore = document.getLong("score")?.toInt() ?: 0
+                val updatedScore = currentScore + player.score  // Add new points to the existing score
+
+                // Update the score in Firestore
+                playerRef.update("score", updatedScore)
+                    .addOnSuccessListener {
+                        Log.d("Firestore", "Successfully updated score for player ${player.playerName}")
+                        onComplete(true)  // Successfully updated score
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e("Firestore", "Error updating score for player ${player.playerName}", e)
+                        onComplete(false)  // Error updating score
+                    }
+            } else {
+                // If the player document doesn't exist
+                Log.e("Firestore", "Player document does not exist for playerId: $playerId")
+                onComplete(false)  // Player not found
             }
         }
         .addOnFailureListener { e ->
-            Log.e("FishingGame", "Error fetching player score", e)
+            Log.e("Firestore", "Error fetching player document for playerId: $playerId", e)
+            onComplete(false)  // Error fetching document
         }
 }
-
 @Composable
 fun FishDisplay(fish: Fish, isReelingComplete: Boolean) {
     val fishImages = mapOf(

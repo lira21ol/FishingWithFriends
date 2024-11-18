@@ -120,16 +120,24 @@ fun UserCreationScreen(onUserCreated: (Player) -> Unit, navController: NavHostCo
                         if (isUserNameValid()) {
                             isCreatingUser = true
                             creationError = null
-
-                            val newPlayer = Player(playerId = fisherName, playerName = fisherName, score = 0)
-
-                            addPlayerToFirestore(newPlayer) { success ->
-                                if (success) {
-                                    onUserCreated(newPlayer)
-                                    // After user creation, navigate to the start screen
-                                    navController.navigate("start_screen")
+                            checkIfUserExists(fisherName) { exists, player ->
+                                if (exists) {
+                                    // Om spelaren finns, navigera direkt till deras profil
+                                    if (player != null) {
+                                        onUserCreated(player) // Skicka den existerande spelaren
+                                        navController.navigate("start_screen")
+                                    }
                                 } else {
-                                    creationError = "Error creating user. Please try again."
+                                    // Om spelaren inte finns, skapa en ny användare
+                                    val newPlayer = Player(playerId = fisherName, playerName = fisherName, score = 0)
+                                    addPlayerToFirestore(newPlayer) { success ->
+                                        if (success) {
+                                            onUserCreated(newPlayer)
+                                            navController.navigate("start_screen")
+                                        } else {
+                                            creationError = "Error creating user. Please try again."
+                                        }
+                                    }
                                 }
                                 isCreatingUser = false
                             }
@@ -161,23 +169,67 @@ fun UserCreationScreen(onUserCreated: (Player) -> Unit, navController: NavHostCo
         }
     }
 }
-
+fun checkIfUserExists(playerName: String, onComplete: (Boolean, Player?) -> Unit) {
+    val playerRef = FirebaseFirestore.getInstance().collection("players").document(playerName)
+    playerRef.get()
+        .addOnSuccessListener { document ->
+            if (document.exists()) {
+                val player = document.toObject(Player::class.java) // Convert Firestore document to Player object
+                onComplete(true, player) // Player exists, return the player object
+            } else {
+                onComplete(false, null) // Player does not exist
+            }
+        }
+        .addOnFailureListener { e ->
+            Log.e("UserCreationScreen", "Error checking user existence", e)
+            onComplete(false, null) // Error occurred, assume player does not exist
+        }
+}
 fun addPlayerToFirestore(player: Player, onComplete: (Boolean) -> Unit) {
     val playerData = hashMapOf(
         "playerId" to player.playerId,
         "playerName" to player.playerName,
         "score" to player.score
     )
-    FirebaseFirestore.getInstance().collection("players").document(player.playerId).set(playerData)
+
+    Log.d("Firestore", "Adding player: ${player.playerId}")
+
+    FirebaseFirestore.getInstance().collection("players")
+        .document(player.playerId)  // Make sure playerId is correct here
+        .set(playerData)
         .addOnSuccessListener {
+            Log.d("Firestore", "Player successfully created with ID: ${player.playerId}")
             onComplete(true)
         }
         .addOnFailureListener { e ->
-            Log.e("UserCreationScreen", "Error adding player to Firestore", e)
+            Log.e("Firestore", "Error adding player to Firestore", e)
             onComplete(false)
         }
 }
-
+fun updatePlayerScore(playerName: String, newScore: Int, onComplete: (Boolean) -> Unit) {
+    val playerRef = FirebaseFirestore.getInstance().collection("players").document(playerName)
+    playerRef.get().addOnSuccessListener { document ->
+        if (document.exists()) {
+            // Document exists, now update the score
+            playerRef.update("score", newScore)
+                .addOnSuccessListener {
+                    Log.d("Firestore", "Successfully updated score for $playerName")
+                    onComplete(true)
+                }
+                .addOnFailureListener { e ->
+                    Log.e("Firestore", "Error updating score", e)
+                    onComplete(false)
+                }
+        } else {
+            Log.e("Firestore", "Player document does not exist: $playerName")
+            onComplete(false)
+        }
+    }
+        .addOnFailureListener { e ->
+            Log.e("Firestore", "Error checking player document", e)
+            onComplete(false)
+        }
+}
 @Preview
 @Composable
 fun PreviewUserCreationScreen() {
