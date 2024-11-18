@@ -29,6 +29,7 @@ import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
 import com.google.android.exoplayer2.ui.PlayerView
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -204,7 +205,7 @@ fun FishingGameScreen(currentPlayer: Player) {
 
         if (points > 0 && !isFishing) {
             Spacer(modifier = Modifier.height(20.dp))
-            
+
             Button(
                 onClick = {
                     updatePlayerScore(currentPlayer) { success ->  // Använd parameter direkt
@@ -221,7 +222,7 @@ fun FishingGameScreen(currentPlayer: Player) {
             ) {
                 Text("Spara poäng")
             }
-            
+
             saveStatus?.let {
                 Text(
                     text = it,
@@ -236,7 +237,16 @@ fun FishingGameScreen(currentPlayer: Player) {
 
 fun updatePlayerScore(player: Player, onComplete: (Boolean) -> Unit) {
     val playerRef = FirebaseFirestore.getInstance().collection("players").document(player.playerId)
-    playerRef.update("score", player.score)
+
+    // Skapa ett Map med spelardata
+    val playerData = hashMapOf(
+        "playerId" to player.playerId,
+        "playerName" to player.playerName,
+        "score" to player.score
+    )
+
+    // Använd set() med merge=true för att skapa eller uppdatera dokumentet
+    playerRef.set(playerData, SetOptions.merge())
         .addOnSuccessListener {
             Log.d("FishingGame", "Successfully updated player score")
             onComplete(true)
@@ -244,6 +254,20 @@ fun updatePlayerScore(player: Player, onComplete: (Boolean) -> Unit) {
         .addOnFailureListener { e ->
             Log.e("FishingGame", "Error updating player score", e)
             onComplete(false)
+        }
+}
+
+fun fetchUpdatedPlayerScore(playerId: String, onUpdate: (Int) -> Unit) {
+    val playerRef = db.collection("players").document(playerId)
+    playerRef.get()
+        .addOnSuccessListener { document ->
+            if (document != null) {
+                val updatedScore = document.getLong("score")?.toInt() ?: 0
+                onUpdate(updatedScore) // Uppdatera poängen i UI
+            }
+        }
+        .addOnFailureListener { e ->
+            Log.e("FishingGame", "Error fetching player score", e)
         }
 }
 
