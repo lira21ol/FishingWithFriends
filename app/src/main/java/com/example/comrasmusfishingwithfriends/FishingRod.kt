@@ -2,6 +2,12 @@ package com.example.comrasmusfishingwithfriends
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
@@ -27,6 +33,17 @@ fun FishingRod(
     val animatedRodPosition by animateDpAsState(targetValue = rodPosition)
     val animatedRodAngle by animateFloatAsState(targetValue = rodAngle)
 
+    val shakeAnimation = rememberInfiniteTransition(label = "shake")
+    val shake = shakeAnimation.animateFloat(
+        initialValue = -2f,
+        targetValue = 2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(100, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shake"
+    )
+
     LaunchedEffect(isCasting, isReeling) {
         if (isCasting) {
             rodPosition = 200.dp
@@ -49,13 +66,15 @@ fun FishingRod(
             .wrapContentSize()
             .height(150.dp)
     ) {
-
         Image(
             painter = rodImage,
             contentDescription = "Fishing Rod",
             modifier = Modifier
                 .rotate(animatedRodAngle)
-                .offset(y = animatedRodPosition)
+                .offset(
+                    x = if (isReeling) shake.value.dp else 0.dp,
+                    y = animatedRodPosition + if (isReeling) (shake.value / 2).dp else 0.dp
+                )
                 .width(100.dp)
         )
     }

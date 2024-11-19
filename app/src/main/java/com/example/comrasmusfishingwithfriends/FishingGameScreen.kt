@@ -31,6 +31,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import androidx.navigation.NavHostController
 import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.DefaultLoadControl
 import com.google.android.exoplayer2.ExoPlayer
@@ -47,7 +48,7 @@ val db: FirebaseFirestore
     get() = FirebaseFirestore.getInstance()
 
 @Composable
-fun FishingGameScreen(currentPlayer: Player) {
+fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
     Log.d("FishingGameScreen", "Current player: ${currentPlayer.playerName}, ID: ${currentPlayer.playerId}, Score: ${currentPlayer.score}")
     var isFishing by remember { mutableStateOf(false) }
     var catchResult by remember { mutableStateOf("Waiting for fish...") }
@@ -67,6 +68,18 @@ fun FishingGameScreen(currentPlayer: Player) {
     val rotationState = remember { Animatable(0f) }
     var showReelingButton by remember { mutableStateOf(true) }
     var shouldRotate by remember { mutableStateOf(false) }
+    var currentChallenge by remember { mutableStateOf(DailyChallengeSystem.generateDailyChallenge()) }
+    var shakeOffset by remember { mutableStateOf(0f) }
+    val shakeAnimation = rememberInfiniteTransition(label = "shake")
+    val shake = shakeAnimation.animateFloat(
+        initialValue = -2f,
+        targetValue = 2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(100, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shake"
+    )
 
     val context = LocalContext.current
     val density = LocalDensity.current.density
@@ -102,6 +115,22 @@ fun FishingGameScreen(currentPlayer: Player) {
         }
     }
 
+    LaunchedEffect(Unit) {
+        // Ladda spelarens data när skärmen öppnas
+        FirebaseManager.loadPlayer(currentPlayer.playerId)?.let { loadedPlayer ->
+            currentPlayer.apply {
+                score = loadedPlayer.score
+                achievements = loadedPlayer.achievements
+                fishCatalog = loadedPlayer.fishCatalog
+                unlockedRods = loadedPlayer.unlockedRods
+                currentRodId = loadedPlayer.currentRodId
+                dailyChallengeProgress = loadedPlayer.dailyChallengeProgress
+                completedChallenges = loadedPlayer.completedChallenges
+                totalChallengeBonus = loadedPlayer.totalChallengeBonus
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -123,7 +152,7 @@ fun FishingGameScreen(currentPlayer: Player) {
                 .zIndex(-1f)
         )
 
-        // Meny-knapp
+        // Tier-meny knapp (högst upp till vänster)
         Row(
             modifier = Modifier
                 .padding(16.dp)
@@ -208,6 +237,131 @@ fun FishingGameScreen(currentPlayer: Player) {
                         Text("Stäng")
                     }
                 }
+            }
+        }
+
+        // Väderinfo (högst upp till höger)
+        var currentWeather by remember { mutableStateOf(WeatherSystem.getCurrentWeather()) }
+
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1E1E1E).copy(alpha = 0.7f)
+            ),
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    painter = painterResource(
+                        id = when (currentWeather.type) {
+                            WeatherType.SUNNY -> R.drawable.ic_sunny
+                            WeatherType.RAINY -> R.drawable.ic_rainy
+                            WeatherType.STORMY -> R.drawable.ic_stormy
+                            WeatherType.CLOUDY -> R.drawable.ic_cloudy
+                        }
+                    ),
+                    contentDescription = "Väder",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+                Text(
+                    text = currentWeather.description,
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+
+        // Daglig utmaning (längst ner till höger)
+        currentChallenge?.let { challenge ->
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF1E1E1E).copy(alpha = 0.7f)
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isChallengeComplete(currentPlayer, challenge)) "Utmaning" else "Dagens utmaning:",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+
+                        if (isChallengeComplete(currentPlayer, challenge)) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_check),
+                                contentDescription = "Completed",
+                                tint = Color.Green,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = challenge.description,
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    if (!isChallengeComplete(currentPlayer, challenge)) {
+                        LinearProgressIndicator(
+                            progress = {
+                                currentPlayer.dailyChallengeProgress.getOrDefault(challenge.id, 0).toFloat() /
+                                challenge.targetCount
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp)
+                                .height(4.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Lägg till Return to Menu-knapp ovanför utmaningskortet
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1E1E1E).copy(alpha = 0.7f)
+            ),
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 180.dp) // Placera ovanför utmaningskortet
+                .clickable { navController.navigate("start_screen") }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_menu),
+                    contentDescription = "Return to menu",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+                Text(
+                    text = "Tillbaka till huvudmenyn",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
     }
@@ -305,26 +459,22 @@ fun FishingGameScreen(currentPlayer: Player) {
                                 isReelRotating = true
                                 reeling.reelIn(scope)
                                 if (reeling.isComplete()) {
-                                    catchResult = "You caught a ${fishCaught?.type ?: "fish"}!"
-                                    points += fishCaught?.points ?: 0
-                                    isCatchSuccessful = true
-                                    isFishCaught = true
-                                    reeling.stopReeling()
-                                    isFishing = false
-                                    currentPlayer.score = points
-                                    
-                                    showReelingButton = false
-                                    shouldRotate = false
-                                    scope.launch {
-                                        delay(3000)
-                                        showReelingButton = true
-                                    }
-                                    
-                                    updatePlayerScore(currentPlayer.playerName, currentPlayer) { success ->
-                                        if (success) {
-                                            saveStatus = "Poäng sparade!"
-                                        } else {
-                                            saveStatus = "Kunde inte spara poäng. Försök igen."
+                                    fishCaught?.let { fish ->
+                                        catchResult = "You caught a ${fish.type}!"
+                                        points += fish.points
+                                        isCatchSuccessful = true
+                                        isFishCaught = true
+                                        reeling.stopReeling()
+                                        isFishing = false
+                                        currentPlayer.score = points
+
+                                        updatePlayerProgress(currentPlayer, fish)
+
+                                        showReelingButton = false
+                                        shouldRotate = false
+                                        scope.launch {
+                                            delay(3000)
+                                            showReelingButton = true
                                         }
                                     }
                                 }
@@ -373,7 +523,7 @@ fun FishingGameScreen(currentPlayer: Player) {
 
 fun updatePlayerScore(playerName: String, player: Player, onComplete: (Boolean) -> Unit) {
     Log.d("Firestore", "Trying to update score for player: $playerName with ID: ${player.playerId}")
-    
+
     // Först kontrollera om vi har ett giltigt ID
     if (player.playerId.isBlank()) {
         Log.e("Firestore", "Invalid player ID")
@@ -455,14 +605,7 @@ fun FishDisplay(fish: Fish, isReelingComplete: Boolean) {
         }
     }
 }
-@Preview(showBackground = true)
-@Composable
-fun PreviewFishingGameScreen() {
-    // Pass a sample player object for the preview
-    FishingGameScreen(
-        currentPlayer = Player(playerId = "1", playerName = "Player One", score = 0)
-    )
-}
+
 
 @Composable
 private fun TierInfoRow(
@@ -491,6 +634,81 @@ private fun TierInfoRow(
                 color = Color.White.copy(alpha = 0.7f),
                 style = MaterialTheme.typography.bodyMedium
             )
+        }
+    }
+}
+
+private fun updateAchievements(player: Player, fish: Fish) {
+    Achievements.allAchievements.forEach { achievement ->
+        when (achievement.id) {
+            "first_catch" -> {
+                achievement.currentCount = 1
+                achievement.isUnlocked = true
+            }
+            "shark_hunter" -> {
+                if (fish.type == "Great White Shark") {
+                    achievement.currentCount = 1
+                    achievement.isUnlocked = true
+                }
+            }
+            "master_fisher" -> {
+                achievement.currentCount++
+                if (achievement.currentCount >= achievement.requiredCount) {
+                    achievement.isUnlocked = true
+                }
+            }
+            "point_collector" -> {
+                if (player.score >= achievement.requiredCount) {
+                    achievement.isUnlocked = true
+                }
+            }
+        }
+    }
+}
+
+private fun updateDailyChallenge(player: Player, challenge: DailyChallenge, fish: Fish) {
+    val currentProgress = player.dailyChallengeProgress.getOrDefault(challenge.id, 0)
+
+    if (!isChallengeComplete(player, challenge)) {
+        if (challenge.targetFishType == null || challenge.targetFishType == fish.type) {
+            player.dailyChallengeProgress[challenge.id] = currentProgress + 1
+
+            if (currentProgress + 1 >= challenge.targetCount) {
+                player.score += 100
+                player.completedChallenges++
+                player.totalChallengeBonus += 100
+
+                FirebaseManager.updatePlayer(player) { success ->
+                    if (success) {
+                        Log.d("Challenge", "Challenge completed and saved successfully")
+                    } else {
+                        Log.e("Challenge", "Failed to save challenge completion")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun isChallengeComplete(player: Player, challenge: DailyChallenge): Boolean {
+    return player.dailyChallengeProgress.getOrDefault(challenge.id, 0) >= challenge.targetCount
+}
+
+private fun updatePlayerProgress(player: Player, fish: Fish) {
+    // Uppdatera fiskekatalog
+    player.fishCatalog.addCatch(fish)
+
+    // Uppdatera achievements
+    updateAchievements(player, fish)
+
+
+    
+    // Spara alla ändringar till Firebase
+    FirebaseManager.updatePlayer(player) { success ->
+        if (success) {
+            Log.d("Firebase", "Successfully saved player progress")
+        } else {
+            Log.e("Firebase", "Failed to save player progress")
         }
     }
 }

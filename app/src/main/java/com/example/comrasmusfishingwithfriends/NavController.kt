@@ -18,7 +18,7 @@ fun FishingApp(navController: NavHostController) {
         composable("user_creation_screen") {
             UserCreationScreen(
                 onUserCreated = { player ->
-                    currentPlayer = player  // Spara spelaren
+                    currentPlayer = player
                     navController.navigate("start_screen")
                 },
                 navController = navController
@@ -26,6 +26,14 @@ fun FishingApp(navController: NavHostController) {
         }
 
         composable("start_screen") {
+            LaunchedEffect(Unit) {
+                currentPlayer?.let { player ->
+                    FirebaseManager.loadPlayer(player.playerId)?.let { loadedPlayer ->
+                        currentPlayer = loadedPlayer
+                    }
+                }
+            }
+
             currentPlayer?.let { player ->
                 StartScreen(
                     onGoFishingClick = {
@@ -37,10 +45,10 @@ fun FishingApp(navController: NavHostController) {
                     onLeaderboardClick = {
                         navController.navigate("leaderboard_screen")
                     },
-                    playerScore = player.score  // Använd score från currentPlayer
+                    playerScore = player.score,
+                    currentPlayer = player
                 )
             } ?: run {
-                // Om ingen spelare finns, gå tillbaka till användarregistrering
                 LaunchedEffect(Unit) {
                     navController.navigate("user_creation_screen")
                 }
@@ -49,9 +57,11 @@ fun FishingApp(navController: NavHostController) {
 
         composable("fishing_game_screen") {
             currentPlayer?.let { player ->
-                FishingGameScreen(currentPlayer = player)  // Skicka med den sparade spelaren
+                FishingGameScreen(
+                    currentPlayer = player,
+                    navController = navController
+                )
             } ?: run {
-                // Om ingen spelare finns, gå tillbaka till användarregistrering
                 LaunchedEffect(Unit) {
                     navController.navigate("user_creation_screen")
                 }
