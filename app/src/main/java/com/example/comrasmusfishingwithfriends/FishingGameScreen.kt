@@ -39,6 +39,7 @@ val db: FirebaseFirestore
 
 @Composable
 fun FishingGameScreen(currentPlayer: Player) {
+    Log.d("FishingGameScreen", "Current player: ${currentPlayer.playerName}, ID: ${currentPlayer.playerId}, Score: ${currentPlayer.score}")
     var isFishing by remember { mutableStateOf(false) }
     var catchResult by remember { mutableStateOf("Waiting for fish...") }
     var fishCaught by remember { mutableStateOf<Fish?>(null) }
@@ -229,33 +230,38 @@ fun FishingGameScreen(currentPlayer: Player) {
 }
 
 fun updatePlayerScore(playerName: String, player: Player, onComplete: (Boolean) -> Unit) {
-    Log.d("Firestore", "Trying to update score for player: $playerName")
-    val playerRef = FirebaseFirestore.getInstance()
-        .collection("players")
-        .document(playerName)  // Använder playerName som dokumentID
+    Log.d("Firestore", "Trying to update score for player: $playerName with ID: ${player.playerId}")
+    
+    // Först kontrollera om vi har ett giltigt ID
+    if (player.playerId.isBlank()) {
+        Log.e("Firestore", "Invalid player ID")
+        onComplete(false)
+        return
+    }
 
-    playerRef.get()
+    FirebaseFirestore.getInstance()
+        .collection("players")
+        .document(player.playerId)
+        .get()
         .addOnSuccessListener { document ->
             if (document.exists()) {
-                Log.d("Firestore", "Found player document, current data: ${document.data}")
-                val updatedScore = player.score
-
-                playerRef.update("score", updatedScore)
+                // Dokumentet finns, uppdatera poängen
+                document.reference.update("score", player.score)
                     .addOnSuccessListener {
-                        Log.d("Firestore", "Successfully updated score for player $playerName")
+                        Log.d("Firestore", "Successfully updated score for player $playerName (ID: ${player.playerId})")
                         onComplete(true)
                     }
                     .addOnFailureListener { e ->
-                        Log.e("Firestore", "Error updating score for player $playerName", e)
+                        Log.e("Firestore", "Error updating score", e)
                         onComplete(false)
                     }
             } else {
-                Log.e("Firestore", "Player document does not exist for player: $playerName")
+                Log.e("Firestore", "Document does not exist for ID: ${player.playerId}")
                 onComplete(false)
             }
         }
         .addOnFailureListener { e ->
-            Log.e("Firestore", "Error fetching player document for player: $playerName", e)
+            Log.e("Firestore", "Error fetching document", e)
             onComplete(false)
         }
 }
