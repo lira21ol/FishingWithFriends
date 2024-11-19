@@ -4,10 +4,17 @@ import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -15,6 +22,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -53,6 +62,11 @@ fun FishingGameScreen(currentPlayer: Player) {
     val rodCastingImage = painterResource(id = R.drawable.rod)
     var showSaveButton by remember { mutableStateOf(false) }
     var saveStatus by remember { mutableStateOf<String?>(null) }
+    var showTierMenu by remember { mutableStateOf(false) }
+    var isReelRotating by remember { mutableStateOf(false) }
+    val rotationState = remember { Animatable(0f) }
+    var showReelingButton by remember { mutableStateOf(true) }
+    var shouldRotate by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val density = LocalDensity.current.density
@@ -108,6 +122,94 @@ fun FishingGameScreen(currentPlayer: Player) {
                 .height(twoThirdsHeight)
                 .zIndex(-1f)
         )
+
+        // Meny-knapp
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .align(Alignment.TopStart)
+                .clickable { showTierMenu = !showTierMenu },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_menu),
+                contentDescription = "Menu",
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+            Text(
+                text = "View Tiers",
+                color = Color.White,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+        // Tier-meny popup
+        AnimatedVisibility(
+            visible = showTierMenu,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 16.dp, top = 56.dp)
+        ) {
+            Card(
+                modifier = Modifier
+                    .width(300.dp)
+                    .wrapContentHeight(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF1E1E1E).copy(alpha = 0.9f)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Fishing Tiers",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = Color.White,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    TierInfoRow(
+                        name = "Platinum",
+                        requirement = "1000+ points",
+                        iconId = R.drawable.tier_platinum
+                    )
+                    TierInfoRow(
+                        name = "Gold",
+                        requirement = "500+ points",
+                        iconId = R.drawable.tier_gold
+                    )
+                    TierInfoRow(
+                        name = "Silver",
+                        requirement = "100+ points",
+                        iconId = R.drawable.tier_silver
+                    )
+                    TierInfoRow(
+                        name = "Bronze",
+                        requirement = "50+ points",
+                        iconId = R.drawable.tier_bronze
+                    )
+                    TierInfoRow(
+                        name = "No Tier",
+                        requirement = "0-49 points",
+                        iconId = R.drawable.ic_star
+                    )
+
+                    Button(
+                        onClick = { showTierMenu = false },
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .padding(top = 8.dp)
+                    ) {
+                        Text("Stäng")
+                    }
+                }
+            }
+        }
     }
 
     Column(
@@ -128,7 +230,11 @@ fun FishingGameScreen(currentPlayer: Player) {
 
         if (!isFishCaught) {
             FishingRod(
-                rodImage = if (isCasting || reeling.isReeling) rodCastingImage else rodIdleImage,
+                rodImage = when {
+                    isCasting -> rodCastingImage
+                    reeling.isReeling -> painterResource(id = R.drawable.rodstruggling)
+                    else -> rodIdleImage
+                },
                 isCasting = isCasting,
                 isReeling = reeling.isReeling
             )
@@ -141,73 +247,94 @@ fun FishingGameScreen(currentPlayer: Player) {
 
         Spacer(modifier = Modifier.height(40.dp))
 
-        Button(
-            onClick = {
-                if (!isFishing) {
-                    isFishing = true
-                    isCasting = true
-                    catchResult = "Casting..."
-                    fishCaught = null
-                    isFishCaught = false
+        if (!isFishing && showReelingButton) {
+            Image(
+                painter = painterResource(id = R.drawable.reelbilden),
+                contentDescription = "Cast Reel",
+                modifier = Modifier
+                    .size(80.dp)
+                    .clickable {
+                        if (!isFishing) {
+                            isFishing = true
+                            isCasting = true
+                            catchResult = "Casting..."
+                            fishCaught = null
+                            isFishCaught = false
+                            shouldRotate = false
 
-                    scope.launch {
-                        delay(2000)
-                        catchResult = "Fish waiting! Reel it in!"
+                            scope.launch {
+                                delay(2000)
+                                catchResult = "Fish waiting! Reel it in!"
 
-                        val fishType = getRandomFishType()
-                        fishCaught = Fish(type = fishType, points = getFishPoints(fishType))
+                                val fishType = getRandomFishType()
+                                fishCaught = Fish(type = fishType, points = getFishPoints(fishType))
 
-                        isCasting = false
-                        reeling.startReeling()
+                                isCasting = false
+                                reeling.startReeling()
+                            }
+                        }
                     }
-                }
-            },
-            enabled = !isFishing,
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(text = if (isFishing) "Fishing..." else "Cast")
+            )
         }
 
-        if (reeling.isReeling) {
+        if (reeling.isReeling && showReelingButton) {
             Spacer(modifier = Modifier.height(40.dp))
 
             LinearProgressIndicator(
                 progress = { reeling.rollProgress },
-                modifier = Modifier.fillMaxWidth().height(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp),
                 color = MaterialTheme.colorScheme.primary,
             )
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            Button(
-                onClick = {
-                    reeling.reelIn()
-                    if (reeling.isComplete()) {
-                        catchResult = "You caught a ${fishCaught?.type ?: "fish"}!"
-                        points += fishCaught?.points ?: 0
-                        isCatchSuccessful = true
-                        isFishCaught = true
-                        reeling.stopReeling()
-                        isFishing = false
-
-                        // Update the score directly on the currentPlayer object
-                        currentPlayer.score = points  // Update the score of the currentPlayer
-
-                        // Call the function to update the score, passing the player's NAME instead of ID
-                        updatePlayerScore(currentPlayer.playerName, currentPlayer) { success ->
-                            if (success) {
-                                saveStatus = "Poäng sparade!"  // Show success message
-                            } else {
-                                saveStatus = "Kunde inte spara poäng. Försök igen."  // Show failure message
-                            }
-                        }
+            Image(
+                painter = painterResource(id = R.drawable.reelbilden),
+                contentDescription = "Reel In",
+                modifier = Modifier
+                    .size(80.dp)
+                    .graphicsLayer {
+                        rotationZ = if (shouldRotate) rotationState.value else 0f
                     }
-                },
-                enabled = reeling.rollProgress < 1f,
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(text = "Roll-In")
-            }
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                shouldRotate = true
+                                isReelRotating = true
+                                reeling.reelIn(scope)
+                                if (reeling.isComplete()) {
+                                    catchResult = "You caught a ${fishCaught?.type ?: "fish"}!"
+                                    points += fishCaught?.points ?: 0
+                                    isCatchSuccessful = true
+                                    isFishCaught = true
+                                    reeling.stopReeling()
+                                    isFishing = false
+                                    currentPlayer.score = points
+                                    
+                                    showReelingButton = false
+                                    shouldRotate = false
+                                    scope.launch {
+                                        delay(3000)
+                                        showReelingButton = true
+                                    }
+                                    
+                                    updatePlayerScore(currentPlayer.playerName, currentPlayer) { success ->
+                                        if (success) {
+                                            saveStatus = "Poäng sparade!"
+                                        } else {
+                                            saveStatus = "Kunde inte spara poäng. Försök igen."
+                                        }
+                                    }
+                                }
+                                awaitRelease()
+                                isReelRotating = false
+                                shouldRotate = false
+                            }
+                        )
+                    }
+            )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -225,6 +352,21 @@ fun FishingGameScreen(currentPlayer: Player) {
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
+        }
+    }
+
+    // Rotation animation
+    LaunchedEffect(isReelRotating) {
+        if (isReelRotating && shouldRotate) {
+            rotationState.animateTo(
+                targetValue = rotationState.value + 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                )
+            )
+        } else {
+            rotationState.snapTo(0f)
         }
     }
 }
@@ -320,4 +462,35 @@ fun PreviewFishingGameScreen() {
     FishingGameScreen(
         currentPlayer = Player(playerId = "1", playerName = "Player One", score = 0)
     )
+}
+
+@Composable
+private fun TierInfoRow(
+    name: String,
+    requirement: String,
+    iconId: Int
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Image(
+            painter = painterResource(id = iconId),
+            contentDescription = "$name tier icon",
+            modifier = Modifier.size(32.dp)
+        )
+        Column {
+            Text(
+                text = name,
+                color = Color.White,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Text(
+                text = requirement,
+                color = Color.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
 }
