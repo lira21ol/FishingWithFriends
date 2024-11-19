@@ -18,16 +18,15 @@ import androidx.compose.ui.layout.ContentScale
 @Composable
 fun StartScreen(
     onGoFishingClick: () -> Unit,
-    onGoFishTogetherClick: () -> Unit
+    onGoFishTogetherClick: () -> Unit,
+    onLeaderboardClick: () -> Unit // Add this to handle leaderboard button
 ) {
-
     val backgroundImage = painterResource(id = R.drawable.bakgrunden)
 
     Box(
         modifier = Modifier
             .fillMaxSize()
     ) {
-
         Image(
             painter = backgroundImage,
             contentDescription = "Background Image",
@@ -52,8 +51,8 @@ fun StartScreen(
 
             Button(
                 modifier = Modifier
-                    .padding(bottom = 16.dp)
-                    .border(2.dp, Color.Red),
+                    .padding(bottom = 16.dp),
+
                 onClick = onGoFishingClick
             ) {
                 Text(text = "Go Fishing")
@@ -64,15 +63,25 @@ fun StartScreen(
             ) {
                 Text(text = "Go Fish Together")
             }
+
+            // Add a button for the leaderboard
+            Button(
+                modifier = Modifier
+                    .padding(top = 16.dp) ,// Add padding above this button
+
+                onClick = onLeaderboardClick // Navigate to the leaderboard
+            ) {
+                Text(text = "Leaderboard")
+            }
         }
     }
 }
-
 @Preview
 @Composable
 fun PreviewStartScreen() {
     StartScreen(
         onGoFishingClick = {},
-        onGoFishTogetherClick = {}
+        onGoFishTogetherClick = {},
+        onLeaderboardClick = {}
     )
 }

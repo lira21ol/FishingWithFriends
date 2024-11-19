@@ -170,7 +170,9 @@ fun UserCreationScreen(onUserCreated: (Player) -> Unit, navController: NavHostCo
     }
 }
 fun checkIfUserExists(playerName: String, onComplete: (Boolean, Player?) -> Unit) {
-    val playerRef = FirebaseFirestore.getInstance().collection("players").document(playerName)
+    val playerRef = FirebaseFirestore.getInstance()
+        .collection("players")
+        .document(playerName)
     playerRef.get()
         .addOnSuccessListener { document ->
             if (document.exists()) {
@@ -194,7 +196,8 @@ fun addPlayerToFirestore(player: Player, onComplete: (Boolean) -> Unit) {
 
     Log.d("Firestore", "Adding player: ${player.playerId}")
 
-    FirebaseFirestore.getInstance().collection("players")
+    FirebaseFirestore.getInstance()
+        .collection("players")
         .document(player.playerId)  // Make sure playerId is correct here
         .set(playerData)
         .addOnSuccessListener {
@@ -207,7 +210,9 @@ fun addPlayerToFirestore(player: Player, onComplete: (Boolean) -> Unit) {
         }
 }
 fun updatePlayerScore(playerName: String, newScore: Int, onComplete: (Boolean) -> Unit) {
-    val playerRef = FirebaseFirestore.getInstance().collection("players").document(playerName)
+    val playerRef = FirebaseFirestore.getInstance()
+        .collection("players")
+        .document(playerName)
     playerRef.get().addOnSuccessListener { document ->
         if (document.exists()) {
             // Document exists, now update the score

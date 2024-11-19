@@ -21,16 +21,23 @@ fun FishingApp(navController: NavHostController) {
                 },
                 onGoFishTogetherClick = {
                     navController.navigate("multiplayer_fishing_game_screen")
+                },
+                onLeaderboardClick = {
+                    navController.navigate("leaderboard_screen") // Navigate to the leaderboard screen
                 }
             )
         }
 
         composable("fishing_game_screen") {
-
-            FishingGameScreen(currentPlayer = Player("playerId", "Fisher", 0)) //route till soloplayer
+            FishingGameScreen(currentPlayer = Player("playerId", "Fisher", 0)) // Route to solo player fishing game
         }
 
         composable("multiplayer_fishing_game_screen") {
-            MultiplayerFishingGameScreen()  // route till MULTIPLAYER
+            MultiplayerFishingGameScreen()  // Route to multiplayer fishing game
         }
-    }}
+
+        composable("leaderboard_screen") {
+            LeaderboardScreen(navController = navController)  // Leaderboard Screen
+        }
+    }
+}

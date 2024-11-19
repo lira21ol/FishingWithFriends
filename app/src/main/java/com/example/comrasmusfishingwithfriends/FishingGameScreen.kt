@@ -192,8 +192,8 @@ fun FishingGameScreen(currentPlayer: Player) {
                         // Update the score directly on the currentPlayer object
                         currentPlayer.score = points  // Update the score of the currentPlayer
 
-                        // Call the function to update the score, passing the player's ID and the updated currentPlayer object
-                        updatePlayerScore(currentPlayer.playerId, currentPlayer) { success ->
+                        // Call the function to update the score, passing the player's NAME instead of ID
+                        updatePlayerScore(currentPlayer.playerName, currentPlayer) { success ->
                             if (success) {
                                 saveStatus = "Poäng sparade!"  // Show success message
                             } else {
@@ -228,39 +228,35 @@ fun FishingGameScreen(currentPlayer: Player) {
     }
 }
 
-fun updatePlayerScore(playerId: String, player: Player, onComplete: (Boolean) -> Unit) {
-    // Reference to the player's document inside the 'players' subcollection
+fun updatePlayerScore(playerName: String, player: Player, onComplete: (Boolean) -> Unit) {
+    Log.d("Firestore", "Trying to update score for player: $playerName")
     val playerRef = FirebaseFirestore.getInstance()
-        .collection("Players")  // The main collection
-        .document(playerId)  // The player document ID (player's name or ID)
+        .collection("players")
+        .document(playerName)  // Använder playerName som dokumentID
 
-    // Get the current score and update it
     playerRef.get()
         .addOnSuccessListener { document ->
             if (document.exists()) {
-                // Get the current score from the document
-                val currentScore = document.getLong("score")?.toInt() ?: 0
-                val updatedScore = currentScore + player.score  // Add new points to the existing score
+                Log.d("Firestore", "Found player document, current data: ${document.data}")
+                val updatedScore = player.score
 
-                // Update the score in Firestore
                 playerRef.update("score", updatedScore)
                     .addOnSuccessListener {
-                        Log.d("Firestore", "Successfully updated score for player ${player.playerName}")
-                        onComplete(true)  // Successfully updated score
+                        Log.d("Firestore", "Successfully updated score for player $playerName")
+                        onComplete(true)
                     }
                     .addOnFailureListener { e ->
-                        Log.e("Firestore", "Error updating score for player ${player.playerName}", e)
-                        onComplete(false)  // Error updating score
+                        Log.e("Firestore", "Error updating score for player $playerName", e)
+                        onComplete(false)
                     }
             } else {
-                // If the player document doesn't exist
-                Log.e("Firestore", "Player document does not exist for playerId: $playerId")
-                onComplete(false)  // Player not found
+                Log.e("Firestore", "Player document does not exist for player: $playerName")
+                onComplete(false)
             }
         }
         .addOnFailureListener { e ->
-            Log.e("Firestore", "Error fetching player document for playerId: $playerId", e)
-            onComplete(false)  // Error fetching document
+            Log.e("Firestore", "Error fetching player document for player: $playerName", e)
+            onComplete(false)
         }
 }
 @Composable

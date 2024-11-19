@@ -52,10 +52,12 @@ android {
 
     kotlinOptions {
         jvmTarget = "1.8"
+
     }
 
     buildFeatures {
         compose = true
+        viewBinding = true
     }
 
     composeOptions {
@@ -95,6 +97,7 @@ dependencies {
     implementation("com.google.android.exoplayer:exoplayer-common:2.19.1")
     implementation("com.google.android.exoplayer:exoplayer-dash:2.19.1")
     implementation("com.google.android.exoplayer:exoplayer-hls:2.19.1")
+    implementation("androidx.appcompat:appcompat:1.7.0")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
