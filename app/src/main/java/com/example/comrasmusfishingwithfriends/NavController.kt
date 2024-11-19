@@ -26,17 +26,25 @@ fun FishingApp(navController: NavHostController) {
         }
 
         composable("start_screen") {
-            StartScreen(
-                onGoFishingClick = {
-                    navController.navigate("fishing_game_screen")
-                },
-                onGoFishTogetherClick = {
-                    navController.navigate("multiplayer_fishing_game_screen")
-                },
-                onLeaderboardClick = {
-                    navController.navigate("leaderboard_screen")
+            currentPlayer?.let { player ->
+                StartScreen(
+                    onGoFishingClick = {
+                        navController.navigate("fishing_game_screen")
+                    },
+                    onGoFishTogetherClick = {
+                        navController.navigate("multiplayer_fishing_game_screen")
+                    },
+                    onLeaderboardClick = {
+                        navController.navigate("leaderboard_screen")
+                    },
+                    playerScore = player.score  // Använd score från currentPlayer
+                )
+            } ?: run {
+                // Om ingen spelare finns, gå tillbaka till användarregistrering
+                LaunchedEffect(Unit) {
+                    navController.navigate("user_creation_screen")
                 }
-            )
+            }
         }
 
         composable("fishing_game_screen") {
