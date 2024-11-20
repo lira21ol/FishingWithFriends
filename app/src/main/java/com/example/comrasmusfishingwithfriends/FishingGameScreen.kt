@@ -152,25 +152,44 @@ fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
                 .zIndex(-1f)
         )
 
-        // Tier-meny knapp (högst upp till vänster)
-        Row(
+        // Row med View Tiers och tillbaka-knapp
+        Column(
             modifier = Modifier
-                .padding(16.dp)
                 .align(Alignment.TopStart)
-                .clickable { showTierMenu = !showTierMenu },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(16.dp)
         ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_menu),
-                contentDescription = "Menu",
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
-            Text(
-                text = "View Tiers",
-                color = Color.White,
-                style = MaterialTheme.typography.bodyMedium
+            // View Tiers knapp
+            Row(
+                modifier = Modifier
+                    .clickable { showTierMenu = !showTierMenu },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_menu),
+                    contentDescription = "Menu",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+                Text(
+                    text = "View Tiers",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            // Tillbaka-ikon under View Tiers
+            Image(
+                painter = painterResource(id = R.drawable.ic_back),
+                contentDescription = "Tillbaka",
+                modifier = Modifier
+                    .padding(top = 16.dp)
+                    .size(32.dp)
+                    .clickable { 
+                        navController.navigate("start_screen") {
+                            popUpTo("start_screen") { inclusive = true }
+                        }
+                    }
             )
         }
 
@@ -191,8 +210,7 @@ fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Column(
-                    modifier = Modifier
-                        .padding(16.dp),
+                    modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
@@ -332,36 +350,6 @@ fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
                         )
                     }
                 }
-            }
-        }
-
-        // Lägg till Return to Menu-knapp ovanför utmaningskortet
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF1E1E1E).copy(alpha = 0.7f)
-            ),
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = 180.dp) // Placera ovanför utmaningskortet
-                .clickable { navController.navigate("start_screen") }
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_menu),
-                    contentDescription = "Return to menu",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-                Text(
-                    text = "Tillbaka till huvudmenyn",
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyMedium
-                )
             }
         }
     }

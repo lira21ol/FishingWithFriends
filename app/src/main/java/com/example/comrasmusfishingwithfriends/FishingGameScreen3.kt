@@ -227,26 +227,21 @@ fun FishingGameScreen3(currentPlayer: Player, navController: NavHostController) 
                         }
                 )
             }
-
-            // Tillbaka-knapp
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF1E1E1E).copy(alpha = 0.7f)
-                ),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(top = 16.dp)
-                    .clickable { navController.navigate("start_screen") }
-            ) {
-                Text(
-                    text = "Tillbaka till huvudmenyn",
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-            }
         }
+
+        Image(
+            painter = painterResource(id = R.drawable.ic_back),
+            contentDescription = "Tillbaka",
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(16.dp)
+                .size(32.dp)
+                .clickable { 
+                    navController.navigate("start_screen") {
+                        popUpTo("start_screen") { inclusive = true }
+                    }
+                }
+        )
     }
 
     // Rotationsanimation
