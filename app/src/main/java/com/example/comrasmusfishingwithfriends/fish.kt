@@ -61,6 +61,22 @@ fun getRandomRiverFish(): String {
     return riverFish.random()
 }
 
+fun getRandomFish3(): String {
+    val riverFish = listOf(
+        "Rainbow Trout",
+        "Brown Trout", 
+        "Salmon",
+        "Pike",
+        "Perch",
+        "Catfish",
+        "Carp",
+        "Sturgeon",
+        "Grayling",
+        "Arctic Char"
+    )
+    return riverFish.random()
+}
+
 fun getFishPoints(fishType: String): Int {
     return when (fishType) {
         "Trout" -> 8
@@ -83,6 +99,22 @@ fun getFishPoints(fishType: String): Int {
         "Arctic Char" -> 16
         "Grayling" -> 10
         else -> 1
+    }
+}
+
+fun getRiverFishPoints(fishType: String): Int {
+    return when (fishType) {
+        "Rainbow Trout" -> 25
+        "Brown Trout" -> 20
+        "Salmon" -> 30
+        "Pike" -> 35
+        "Perch" -> 15
+        "Catfish" -> 40
+        "Carp" -> 20
+        "Sturgeon" -> 45
+        "Grayling" -> 25
+        "Arctic Char" -> 30
+        else -> 10
     }
 }
 

@@ -93,6 +93,12 @@ class Reeling {
         rollProgress = 0f
         isHolding = false
     }
+
+    fun completeAllPhases() {
+        currentPhase = phases.size - 1
+        phaseProgress = 1f
+        rollProgress = 1f
+    }
 }
 
 data class Phase(

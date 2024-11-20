@@ -497,7 +497,7 @@ fun handleCatchComplete(
     onReelingComplete()
     
     scope.launch {
-        delay(3000)
+        delay(5000)
         onResetState()
     }
 }

@@ -29,22 +29,19 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun FishingGameScreen3(currentPlayer: Player, navController: NavHostController) {
-    // State variabler (samma som FishingGameScreen men med några tillägg)
     var isFishing by remember { mutableStateOf(false) }
-    var catchResult by remember { mutableStateOf("Väntar på fisk...") }
     var fishCaught by remember { mutableStateOf<Fish?>(null) }
-    var isCatchSuccessful by remember { mutableStateOf(false) }
     var isCasting by remember { mutableStateOf(false) }
     val reeling = remember { Reeling() }
     var isFishCaught by remember { mutableStateOf(false) }
     var points by remember { mutableIntStateOf(currentPlayer.score) }
+    val scope = rememberCoroutineScope()
     var showReelingButton by remember { mutableStateOf(true) }
     var shouldRotate by remember { mutableStateOf(false) }
     var isReelRotating by remember { mutableStateOf(false) }
     val rotationState = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
 
-    // Setup för videobakgrund med flodbakgrund istället
+    // Video setup
     val context = LocalContext.current
     val density = LocalDensity.current.density
     val displayMetrics = context.resources.displayMetrics
@@ -54,17 +51,17 @@ fun FishingGameScreen3(currentPlayer: Player, navController: NavHostController) 
 
     val player = remember {
         ExoPlayer.Builder(context)
-            .setLoadControl(DefaultLoadControl.Builder()
-                .setBufferDurationsMs(
-                    DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
-                    DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
-                    DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS / 2,
-                    DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS / 2
-                )
-                .build()
+            .setLoadControl(
+                DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(
+                        DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+                        DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+                        DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS / 2,
+                        DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS / 2
+                    )
+                    .build()
             )
             .build().apply {
-                // Använd flodbakgrundsvideo istället
                 val mediaItem = MediaItem.fromUri("android.resource://${context.packageName}/raw/riverbakgrund")
                 setMediaItem(mediaItem)
                 prepare()
@@ -80,12 +77,35 @@ fun FishingGameScreen3(currentPlayer: Player, navController: NavHostController) 
         }
     }
 
+    fun handleCatchComplete() {
+        fishCaught?.let { fish ->
+            points += fish.points
+            isFishCaught = true
+            reeling.stopReeling()
+            isFishing = false
+            currentPlayer.score = points
+            updatePlayerProgress(currentPlayer, fish)
+            showReelingButton = false
+            
+            scope.launch {
+                delay(5000)
+                // Återställ alla tillstånd
+                fishCaught = null
+                isFishCaught = false
+                showReelingButton = true
+                reeling.reset()
+                isCasting = false
+                shouldRotate = false
+                isReelRotating = false
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF87ACF6)) // Ändrad bakgrundsfärg för flodtema
+            .background(Color(0xFF87ACF6))
     ) {
-        // Videobakgrund
         AndroidView(
             factory = { context ->
                 PlayerView(context).apply {
@@ -102,7 +122,6 @@ fun FishingGameScreen3(currentPlayer: Player, navController: NavHostController) 
                 .zIndex(-1f)
         )
 
-        // Huvudinnehåll
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -110,7 +129,6 @@ fun FishingGameScreen3(currentPlayer: Player, navController: NavHostController) 
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Poängvisning
             Text(
                 text = "Poäng: $points",
                 style = MaterialTheme.typography.headlineSmall,
@@ -119,7 +137,6 @@ fun FishingGameScreen3(currentPlayer: Player, navController: NavHostController) 
 
             Spacer(modifier = Modifier.height(100.dp))
 
-            // Fiskespö
             if (!isFishCaught) {
                 FishingRod(
                     rodImage = when {
@@ -130,17 +147,89 @@ fun FishingGameScreen3(currentPlayer: Player, navController: NavHostController) 
                     isCasting = isCasting,
                     isReeling = reeling.isReeling
                 )
-            }
-
-            // Visa fångad fisk
-            fishCaught?.let {
-                FishDisplay3(fish = it, isReelingComplete = reeling.isComplete())
+            } else if (fishCaught != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    FishDisplay3(fish = fishCaught!!, isReelingComplete = !reeling.isReeling)
+                }
             }
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Kastknapp
-            if (!isFishing && showReelingButton) {
+            if (reeling.isReeling && !isFishCaught) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .background(Color.Gray.copy(alpha = 0.3f))
+                ) {
+                    Reeling.phases.forEachIndexed { index, phase ->
+                        if (index <= reeling.currentPhase) {
+                            val endFraction = if (index == reeling.currentPhase) {
+                                (index.toFloat() + reeling.phaseProgress) / Reeling.phases.size
+                            } else {
+                                (index + 1f) / Reeling.phases.size
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(endFraction)
+                                    .background(phase.color)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Image(
+                    painter = painterResource(id = R.drawable.reelbilden),
+                    contentDescription = "Reel In",
+                    modifier = Modifier
+                        .size(80.dp)
+                        .graphicsLayer {
+                            rotationZ = if (shouldRotate) rotationState.value else 0f
+                        }
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onPress = {
+                                    scope.launch {
+                                        reeling.isHolding = true
+                                        shouldRotate = true
+                                        isReelRotating = true
+                                        
+                                        while (reeling.isHolding) {
+                                            if (reeling.updateProgress(true)) {
+                                                if (reeling.completePhase()) {
+                                                    handleCatchComplete()
+                                                    break
+                                                }
+                                            }
+                                            delay(16)
+                                        }
+
+                                        awaitRelease()
+                                        reeling.isHolding = false
+                                        isReelRotating = false
+                                        shouldRotate = false
+                                    }
+                                },
+                                onTap = {
+                                    if (reeling.updateProgress(false)) {
+                                        if (reeling.completePhase()) {
+                                            handleCatchComplete()
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                )
+            } else if (!isFishing && showReelingButton && !isFishCaught) {
                 Image(
                     painter = painterResource(id = R.drawable.reelbilden),
                     contentDescription = "Kasta",
@@ -150,80 +239,19 @@ fun FishingGameScreen3(currentPlayer: Player, navController: NavHostController) 
                             if (!isFishing) {
                                 isFishing = true
                                 isCasting = true
-                                catchResult = "Kastar..."
                                 fishCaught = null
                                 isFishCaught = false
                                 shouldRotate = false
-
+                                reeling.stopReeling()
+                                
                                 scope.launch {
                                     delay(2000)
-                                    catchResult = "Fisk på kroken! Dra in den!"
-                                    
-                                    // Använd det nya funktionsnamnet
                                     val fishType = getRandomFish3()
-                                    fishCaught = Fish(type = fishType, points = getRiverFishPoints(fishType))
-
+                                    fishCaught = Fish(type = fishType, points = getFishPoints3(fishType))
                                     isCasting = false
                                     reeling.startReeling()
                                 }
                             }
-                        }
-                )
-            }
-
-            // Reeling-kontroller
-            if (reeling.isReeling && showReelingButton) {
-                Spacer(modifier = Modifier.height(40.dp))
-
-                LinearProgressIndicator(
-                    progress = { reeling.rollProgress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp),
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Image(
-                    painter = painterResource(id = R.drawable.reelbilden),
-                    contentDescription = "Dra in",
-                    modifier = Modifier
-                        .size(80.dp)
-                        .graphicsLayer {
-                            rotationZ = if (shouldRotate) rotationState.value else 0f
-                        }
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onPress = {
-                                    shouldRotate = true
-                                    isReelRotating = true
-                                    reeling.reelIn(scope)
-                                    if (reeling.isComplete()) {
-                                        fishCaught?.let { fish ->
-                                            catchResult = "Du fångade en ${fish.type}!"
-                                            points += fish.points
-                                            isCatchSuccessful = true
-                                            isFishCaught = true
-                                            reeling.stopReeling()
-                                            isFishing = false
-                                            currentPlayer.score = points
-
-                                            updatePlayerProgress(currentPlayer, fish)
-
-                                            showReelingButton = false
-                                            shouldRotate = false
-                                            scope.launch {
-                                                delay(3000)
-                                                showReelingButton = true
-                                            }
-                                        }
-                                    }
-                                    awaitRelease()
-                                    isReelRotating = false
-                                    shouldRotate = false
-                                }
-                            )
                         }
                 )
             }
@@ -244,7 +272,6 @@ fun FishingGameScreen3(currentPlayer: Player, navController: NavHostController) 
         )
     }
 
-    // Rotationsanimation
     LaunchedEffect(isReelRotating) {
         if (isReelRotating && shouldRotate) {
             rotationState.animateTo(
@@ -260,37 +287,7 @@ fun FishingGameScreen3(currentPlayer: Player, navController: NavHostController) 
     }
 }
 
-// Hjälpfunktioner för flodsfiske
-private fun getRandomFish3(): String {
-    return listOf(
-        "Rainbow Trout",
-        "Brown Trout",
-        "Salmon",
-        "Pike",
-        "Perch",
-        "Catfish",
-        "Carp",
-        "Sturgeon",
-        "Grayling",
-        "Arctic Char"
-    ).random()
-}
-
-private fun getRiverFishPoints(fishType: String): Int {
-    return when (fishType) {
-        "Sturgeon" -> 400
-        "Salmon" -> 350
-        "Catfish" -> 300
-        "Pike" -> 250
-        "Rainbow Trout" -> 200
-        "Brown Trout" -> 175
-        "Carp" -> 150
-        "Arctic Char" -> 125
-        "Perch" -> 100
-        "Grayling" -> 75
-        else -> 50
-    }
-}
+// Hjälpfunktioner behålls samma som tidigare
 
 @Composable
 private fun FishDisplay3(fish: Fish, isReelingComplete: Boolean) {
@@ -319,7 +316,12 @@ private fun FishDisplay3(fish: Fish, isReelingComplete: Boolean) {
 
     AnimatedVisibility(
         visible = isVisible,
-        enter = expandIn(),
+        enter = expandIn(
+            animationSpec = tween(
+                durationMillis = 1000,
+                easing = FastOutSlowInEasing
+            )
+        ),
         exit = fadeOut()
     ) {
         Column(
@@ -329,15 +331,48 @@ private fun FishDisplay3(fish: Fish, isReelingComplete: Boolean) {
                 .wrapContentHeight(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Text(
+                text = "Du fångade en ${fish.type}!",
+                color = Color(0xFF90EE90),
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            
             Image(
                 painter = painterResource(id = fishImage),
                 contentDescription = "Fiskbild",
                 modifier = Modifier.size(200.dp)
             )
+            
             Text(
-                text = "Du fångade en ${fish.type} som väger ${fish.weight}kg!",
+                text = "Vikt: ${fish.weight}kg",
+                color = Color.White,
+                style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(top = 8.dp)
+            )
+            
+            Text(
+                text = "+${fish.points} poäng!",
+                color = Color(0xFFFFD700),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(top = 4.dp)
             )
         }
     }
-} 
+}
+
+private fun getFishPoints3(fishType: String): Int {
+    return when (fishType) {
+        "Rainbow Trout" -> 150
+        "Brown Trout" -> 120
+        "Salmon" -> 200
+        "Pike" -> 180
+        "Perch" -> 100
+        "Catfish" -> 250
+        "Carp" -> 160
+        "Sturgeon" -> 300
+        "Grayling" -> 140
+        "Arctic Char" -> 170
+        else -> 100
+    }
+}
