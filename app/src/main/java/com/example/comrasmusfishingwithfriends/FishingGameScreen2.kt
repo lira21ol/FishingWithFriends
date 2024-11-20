@@ -133,102 +133,177 @@ fun FishingGameScreen2(
         ) {
             // Progress bar för reeling
             if (reeling.isReeling) {
-                LinearProgressIndicator(
-                    progress = { reeling.rollProgress },
+                Box(
                     modifier = Modifier
                         .width(200.dp)
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp))
-                )
-            }
+                        .background(Color.Gray.copy(alpha = 0.3f))
+                ) {
+                    Reeling.phases.forEachIndexed { index, phase ->
+                        if (index <= reeling.currentPhase) {
+                            val endFraction = if (index == reeling.currentPhase) {
+                                (index.toFloat() + reeling.phaseProgress) / Reeling.phases.size
+                            } else {
+                                (index + 1f) / Reeling.phases.size
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(endFraction)
+                                    .background(phase.color)
+                            )
+                        }
+                    }
+                }
 
-            // Harpun-knapp
-            Image(
-                painter = painterResource(id = R.drawable.harpoon),
-                contentDescription = if (isHarpoonShot) "Dra in" else "Kasta harpun",
-                modifier = Modifier
-                    .size(100.dp)
-                    .offset(
-                        y = if (isHarpoonShot) harpoonPosition.dp else 0.dp,
-                        x = if (isHarpoonReturning) shake.value.dp else 0.dp
-                    )
-                    .clickable {
-                        if (!isHarpoonShot && !isHarpoonReturning && !isFishing) {
+                Image(
+                    painter = painterResource(id = R.drawable.reelbilden),
+                    contentDescription = "Dra in",
+                    modifier = Modifier
+                        .size(80.dp)
+                        .graphicsLayer {
+                            rotationZ = if (shouldRotate) rotationState.value else 0f
+                        }
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onPress = {
+                                    scope.launch {
+                                        reeling.isHolding = true
+                                        shouldRotate = true
+                                        isReelRotating = true
+                                        
+                                        while (reeling.isHolding) {
+                                            if (reeling.updateProgress(true)) {
+                                                if (reeling.completePhase()) {
+                                                    // Generera fisk direkt när reeling är klar
+                                                    val fishType = getRandomOceanFish2()
+                                                    val fish = Fish(
+                                                        type = fishType,
+                                                        points = getFishPoints2(fishType),
+                                                        weight = (10..500).random().toDouble(),
+                                                        rarity = when {
+                                                            fishType in listOf("Blue Whale", "Great White Shark") -> FishRarity.LEGENDARY
+                                                            fishType in listOf("Giant Squid", "Hammerhead Shark") -> FishRarity.RARE
+                                                            fishType in listOf("Manta Ray", "Dolphin") -> FishRarity.UNCOMMON
+                                                            else -> FishRarity.COMMON
+                                                        }
+                                                    )
+                                                    
+                                                    fishCaught = fish
+                                                    currentPlayer.score += fish.points
+                                                    points = currentPlayer.score
+                                                    updatePlayerProgress(currentPlayer, fish)
+                                                    
+                                                    reeling.stopReeling()
+                                                    
+                                                    // Lägg till denna del för att återställa efter 3 sekunder
+                                                    scope.launch {
+                                                        delay(3000)
+                                                        fishCaught = null
+                                                        isFishing = false
+                                                        isHarpoonShot = false
+                                                        isHarpoonReturning = false
+                                                        harpoonPosition = 0f
+                                                    }
+                                                    break
+                                                }
+                                            }
+                                            delay(16)
+                                        }
+
+                                        awaitRelease()
+                                        reeling.isHolding = false
+                                        isReelRotating = false
+                                        shouldRotate = false
+                                    }
+                                },
+                                onTap = {
+                                    if (reeling.updateProgress(false)) {
+                                        if (reeling.completePhase()) {
+                                            // Samma fångstlogik här för klick
+                                            val fishType = getRandomOceanFish2()
+                                            val fish = Fish(
+                                                type = fishType,
+                                                points = getFishPoints2(fishType),
+                                                weight = (10..500).random().toDouble(),
+                                                rarity = when {
+                                                    fishType in listOf("Blue Whale", "Great White Shark") -> FishRarity.LEGENDARY
+                                                    fishType in listOf("Giant Squid", "Hammerhead Shark") -> FishRarity.RARE
+                                                    fishType in listOf("Manta Ray", "Dolphin") -> FishRarity.UNCOMMON
+                                                    else -> FishRarity.COMMON
+                                                }
+                                            )
+                                            
+                                            fishCaught = fish
+                                            currentPlayer.score += fish.points
+                                            points = currentPlayer.score
+                                            updatePlayerProgress(currentPlayer, fish)
+                                            
+                                            reeling.stopReeling()
+                                            
+                                            // Lägg till denna del för att återställa efter 3 sekunder
+                                            scope.launch {
+                                                delay(3000)
+                                                fishCaught = null
+                                                isFishing = false
+                                                isHarpoonShot = false
+                                                isHarpoonReturning = false
+                                                harpoonPosition = 0f
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                )
+            } else {
+                // Harpun-knapp
+                Image(
+                    painter = painterResource(id = R.drawable.harpoon),
+                    contentDescription = if (isHarpoonShot) "Dra in" else "Kasta harpun",
+                    modifier = Modifier
+                        .size(200.dp)
+                        .offset(
+                            y = if (isHarpoonShot) harpoonPosition.dp else 0.dp,
+                            x = if (isHarpoonReturning) shake.value.dp else 0.dp
+                        )
+                        .clickable(enabled = !isFishing) {
                             scope.launch {
                                 isFishing = true
                                 isHarpoonShot = true
                                 
-                                // Skjut upp harpunen
-                                animate(0f, -500f) { value, _ ->
+                                // Animera harpunen uppåt med en längre animation
+                                animate(
+                                    initialValue = 0f,
+                                    targetValue = -2000f,
+                                    animationSpec = tween(
+                                        durationMillis = 1000,
+                                        easing = FastOutLinearInEasing
+                                    )
+                                ) { value, _ ->
                                     harpoonPosition = value
                                 }
                                 
-                                delay(500)
-                                
-                                // Starta reeling
+                                delay(1000)
                                 reeling.startReeling()
-                                isHarpoonReturning = true
-                                
-                                // Dra tillbaka harpunen med skakning
-                                animate(-500f, 0f) { value, _ ->
-                                    harpoonPosition = value
-                                }
-                                
-                                // När reeling är klar, hantera fångsten
-                                if (reeling.isComplete()) {
-                                    val fishType = getRandomOceanFish2()
-                                    val fish = Fish(
-                                        type = fishType,
-                                        points = getFishPoints2(fishType),
-                                        weight = (10..500).random().toDouble(),
-                                        rarity = when {
-                                            fishType in listOf("Blue Whale", "Great White Shark") -> FishRarity.LEGENDARY
-                                            fishType in listOf("Giant Squid", "Hammerhead Shark") -> FishRarity.RARE
-                                            fishType in listOf("Manta Ray", "Dolphin") -> FishRarity.UNCOMMON
-                                            else -> FishRarity.COMMON
-                                        }
-                                    )
-                                    
-                                    fishCaught = fish
-                                    handleCatchComplete(
-                                        fish = fish,
-                                        currentPlayer = currentPlayer,
-                                        onPointsUpdate = { points = it },
-                                        onReelingComplete = {
-                                            isFishing = false
-                                            showReelingButton = false
-                                            shouldRotate = false
-                                            scope.launch {
-                                                delay(5000)
-                                                showReelingButton = true
-                                            }
-                                        },
-                                        onResetState = {
-                                            scope.launch {
-                                                delay(5000)
-                                                fishCaught = null
-                                                isFishCaught = false
-                                                isCasting = false
-                                                reeling.stopReeling()
-                                                catchResult = "Väntar på fisk..."
-                                            }
-                                        },
-                                        scope = scope
-                                    )
-                                }
-                                
-                                // Återställ harpun-states
-                                isHarpoonShot = false
-                                isHarpoonReturning = false
                             }
                         }
-                    }
-            )
+                )
+            }
         }
 
         // Visa fångad fisk
-        fishCaught?.let {
-            FishDisplay2(fish = it, isReelingComplete = reeling.isComplete())
+        if (fishCaught != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                FishDisplay2(fish = fishCaught!!, isReelingComplete = !reeling.isReeling)
+            }
         }
 
         // Tillbaka-ikon
@@ -247,65 +322,18 @@ fun FishingGameScreen2(
         )
     }
 
-    // Uppdatera reeling-logiken för att hantera harpunen
-    if (reeling.isReeling) {
-        LaunchedEffect(Unit) {
-            while (reeling.isReeling && !reeling.isComplete()) {
-                reeling.reelIn(scope)
-                delay(100)
-            }
-            
-            if (reeling.isComplete()) {
-                // Generera en slumpmässig havsfisk
-                val fishType = getRandomOceanFish2()
-                val fish = Fish(
-                    type = fishType,
-                    points = getFishPoints2(fishType),
-                    weight = (10..500).random().toDouble(), // Slumpmässig vikt mellan 10-500 kg
-                    rarity = when {
-                        fishType in listOf("Blue Whale", "Great White Shark") -> FishRarity.LEGENDARY
-                        fishType in listOf("Giant Squid", "Hammerhead Shark") -> FishRarity.RARE
-                        fishType in listOf("Manta Ray", "Dolphin") -> FishRarity.UNCOMMON
-                        else -> FishRarity.COMMON
-                    }
+    // Rotation animation för reeling
+    LaunchedEffect(isReelRotating) {
+        if (isReelRotating && shouldRotate) {
+            rotationState.animateTo(
+                targetValue = rotationState.value + 360f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
                 )
-
-                // Uppdatera UI och spelardata
-                fishCaught = fish
-                isCatchSuccessful = true
-                catchResult = "Du fångade en ${fish.type}!"
-                
-                // Uppdatera spelarens poäng
-                currentPlayer.score += fish.points
-                points = currentPlayer.score
-
-                // Lägg till fisken i katalogen
-                val fishEntry = FishEntry(
-                    fishType = fish.type,
-                    timesCaught = 1,
-                    largestWeight = fish.weight,
-                    totalPoints = fish.points,
-                    location = "Havet"
-                )
-                currentPlayer.fishCatalog.catalog[fish.type] = fishEntry
-                currentPlayer.fishCatalog.caughtFish[fish.type] = 
-                    (currentPlayer.fishCatalog.caughtFish[fish.type] ?: 0) + 1
-
-                // Spara till Firebase
-                FirebaseManager.updatePlayer(currentPlayer) { success ->
-                    if (success) {
-                        Log.d("FishingGame", "Fångst sparad framgångsrikt")
-                    }
-                }
-
-                // Återställ states efter en stund
-                delay(3000)
-                reeling.stopReeling()
-                isFishing = false
-                isHarpoonShot = false
-                isHarpoonReturning = false
-                harpoonPosition = 0f
-            }
+            )
+        } else {
+            rotationState.snapTo(0f)
         }
     }
 }
@@ -455,7 +483,7 @@ private fun handleReelIn(
     }
 }
 
-private fun handleCatchComplete(
+fun handleCatchComplete(
     fish: Fish,
     currentPlayer: Player,
     onPointsUpdate: (Int) -> Unit,
@@ -522,7 +550,6 @@ private fun FishDisplay2(fish: Fish, isReelingComplete: Boolean) {
 
     LaunchedEffect(isReelingComplete) {
         if (isReelingComplete) {
-            delay(1000)
             isVisible = true
         }
     }
@@ -534,9 +561,9 @@ private fun FishDisplay2(fish: Fish, isReelingComplete: Boolean) {
     ) {
         Column(
             modifier = Modifier
-                .padding(16.dp)
                 .fillMaxWidth()
-                .wrapContentHeight(),
+                .wrapContentHeight()
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Image(
@@ -545,15 +572,21 @@ private fun FishDisplay2(fish: Fish, isReelingComplete: Boolean) {
                 modifier = Modifier.size(200.dp)
             )
             Text(
-                text = "Du fångade en ${fish.type} som väger ${fish.weight}kg!",
-                color = Color.White,
-                style = MaterialTheme.typography.bodyLarge,
+                text = "Du fångade en ${fish.type}!",
+                color = Color(0xFF90EE90),
+                style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.padding(top = 8.dp)
             )
             Text(
-                text = "+${fish.points} poäng!",
+                text = "Vikt: ${fish.weight}kg",
                 color = Color.White,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Text(
+                text = "+${fish.points} poäng!",
+                color = Color(0xFFFFD700),
+                style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(top = 4.dp)
             )
         }

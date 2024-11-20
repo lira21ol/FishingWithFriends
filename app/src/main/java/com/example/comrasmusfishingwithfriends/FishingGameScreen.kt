@@ -21,14 +21,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
@@ -51,9 +55,7 @@ val db: FirebaseFirestore
 fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
     Log.d("FishingGameScreen", "Current player: ${currentPlayer.playerName}, ID: ${currentPlayer.playerId}, Score: ${currentPlayer.score}")
     var isFishing by remember { mutableStateOf(false) }
-    var catchResult by remember { mutableStateOf("Waiting for fish...") }
     var fishCaught by remember { mutableStateOf<Fish?>(null) }
-    var isCatchSuccessful by remember { mutableStateOf(false) }
     var isCasting by remember { mutableStateOf(false) }
     val reeling = remember { Reeling() }
     var isFishCaught by remember { mutableStateOf(false) }
@@ -68,7 +70,6 @@ fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
     val rotationState = remember { Animatable(0f) }
     var showReelingButton by remember { mutableStateOf(true) }
     var shouldRotate by remember { mutableStateOf(false) }
-    var currentChallenge by remember { mutableStateOf(DailyChallengeSystem.generateDailyChallenge()) }
     var shakeOffset by remember { mutableStateOf(0f) }
     val shakeAnimation = rememberInfiniteTransition(label = "shake")
     val shake = shakeAnimation.animateFloat(
@@ -127,6 +128,23 @@ fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
                 dailyChallengeProgress = loadedPlayer.dailyChallengeProgress
                 completedChallenges = loadedPlayer.completedChallenges
                 totalChallengeBonus = loadedPlayer.totalChallengeBonus
+            }
+        }
+    }
+
+    fun handleCatchComplete() {
+        fishCaught?.let { fish ->
+            points += fish.points
+            isFishCaught = true
+            reeling.stopReeling()
+            isFishing = false
+            currentPlayer.score = points
+            updatePlayerProgress(currentPlayer, fish)
+            showReelingButton = false
+            scope.launch {
+                delay(5000)
+                showReelingButton = true
+                fishCaught = null  // Återställ fishCaught när tiden är ute
             }
         }
     }
@@ -295,63 +313,6 @@ fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
                 )
             }
         }
-
-        // Daglig utmaning (längst ner till höger)
-        currentChallenge?.let { challenge ->
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF1E1E1E).copy(alpha = 0.7f)
-                ),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (isChallengeComplete(currentPlayer, challenge)) "Utmaning" else "Dagens utmaning:",
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-
-                        if (isChallengeComplete(currentPlayer, challenge)) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_check),
-                                contentDescription = "Completed",
-                                tint = Color.Green,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = challenge.description,
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-
-                    if (!isChallengeComplete(currentPlayer, challenge)) {
-                        LinearProgressIndicator(
-                            progress = {
-                                currentPlayer.dailyChallengeProgress.getOrDefault(challenge.id, 0).toFloat() /
-                                challenge.targetCount
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp)
-                                .height(4.dp)
-                        )
-                    }
-                }
-            }
-        }
     }
 
     Column(
@@ -362,14 +323,28 @@ fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Points: $points",
-            style = MaterialTheme.typography.headlineSmall,
+            text = "Poäng: $points",
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 32.sp,
+                letterSpacing = 1.sp,
+                shadow = Shadow(
+                    color = Color.Black.copy(alpha = 0.7f),
+                    offset = Offset(3f, 3f),
+                    blurRadius = 4f
+                )
+            ),
+            color = Color(0xFF90EE90),  // Ljusgrön färg som passar fiske-temat
             modifier = Modifier
                 .padding(16.dp)
+                .graphicsLayer {
+                    translationY = 4f  // Ger en lätt "flytande" effekt
+                }
         )
 
         Spacer(modifier = Modifier.height(100.dp))
 
+        // Visa antingen fiskespöt eller den fångade fisken
         if (!isFishCaught) {
             FishingRod(
                 rodImage = when {
@@ -380,14 +355,13 @@ fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
                 isCasting = isCasting,
                 isReeling = reeling.isReeling
             )
+        } else {
+            fishCaught?.let {
+                FishDisplay(fish = it, isReelingComplete = true)
+            }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
-        fishCaught?.let {
-            FishDisplay(fish = it, isReelingComplete = reeling.isComplete())
-        }
-
-        Spacer(modifier = Modifier.height(40.dp))
 
         if (!isFishing && showReelingButton) {
             Image(
@@ -399,15 +373,13 @@ fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
                         if (!isFishing) {
                             isFishing = true
                             isCasting = true
-                            catchResult = "Casting..."
                             fishCaught = null
                             isFishCaught = false
                             shouldRotate = false
-
+                            reeling.stopReeling()
+                            
                             scope.launch {
                                 delay(2000)
-                                catchResult = "Fish waiting! Reel it in!"
-
                                 val fishType = getRandomFishType()
                                 fishCaught = Fish(type = fishType, points = getFishPoints(fishType))
 
@@ -422,13 +394,32 @@ fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
         if (reeling.isReeling && showReelingButton) {
             Spacer(modifier = Modifier.height(40.dp))
 
-            LinearProgressIndicator(
-                progress = { reeling.rollProgress },
+            // Progress bar för nuvarande fas
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp),
-                color = MaterialTheme.colorScheme.primary,
-            )
+                    .height(8.dp)
+                    .background(Color.Gray.copy(alpha = 0.3f))
+            ) {
+                // Rita ut alla faser som har progress
+                Reeling.phases.forEachIndexed { index, phase ->
+                    if (index <= reeling.currentPhase) {
+                        val startFraction = index.toFloat() / Reeling.phases.size
+                        val endFraction = if (index == reeling.currentPhase) {
+                            (index.toFloat() + reeling.phaseProgress) / Reeling.phases.size
+                        } else {
+                            (index + 1f) / Reeling.phases.size
+                        }
+                        
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(endFraction)
+                                .background(phase.color)
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -443,32 +434,33 @@ fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {
-                                shouldRotate = true
-                                isReelRotating = true
-                                reeling.reelIn(scope)
-                                if (reeling.isComplete()) {
-                                    fishCaught?.let { fish ->
-                                        catchResult = "You caught a ${fish.type}!"
-                                        points += fish.points
-                                        isCatchSuccessful = true
-                                        isFishCaught = true
-                                        reeling.stopReeling()
-                                        isFishing = false
-                                        currentPlayer.score = points
-
-                                        updatePlayerProgress(currentPlayer, fish)
-
-                                        showReelingButton = false
-                                        shouldRotate = false
-                                        scope.launch {
-                                            delay(3000)
-                                            showReelingButton = true
+                                scope.launch {
+                                    reeling.isHolding = true
+                                    shouldRotate = true
+                                    isReelRotating = true
+                                    
+                                    while (reeling.isHolding) {
+                                        if (reeling.updateProgress(true)) {
+                                            if (reeling.completePhase()) {
+                                                handleCatchComplete()
+                                                break
+                                            }
                                         }
+                                        delay(16)
+                                    }
+
+                                    awaitRelease()
+                                    reeling.isHolding = false
+                                    isReelRotating = false
+                                    shouldRotate = false
+                                }
+                            },
+                            onTap = {
+                                if (reeling.updateProgress(false)) {
+                                    if (reeling.completePhase()) {
+                                        handleCatchComplete()
                                     }
                                 }
-                                awaitRelease()
-                                isReelRotating = false
-                                shouldRotate = false
                             }
                         )
                     }
@@ -476,8 +468,6 @@ fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
         }
 
         Spacer(modifier = Modifier.height(20.dp))
-
-        CatchResult(isSuccessful = isCatchSuccessful, fish = fishCaught)
 
         if (points > 0 && !isFishing) {
             Spacer(modifier = Modifier.height(20.dp))
@@ -546,7 +536,7 @@ fun updatePlayerScore(playerName: String, player: Player, onComplete: (Boolean) 
         }
 }
 @Composable
-fun FishDisplay(fish: Fish, isReelingComplete: Boolean) {
+private fun FishDisplay(fish: Fish, isReelingComplete: Boolean) {
     val fishImages = mapOf(
         "Trout" to R.drawable.trout,
         "Bass" to R.drawable.bass,
@@ -574,14 +564,19 @@ fun FishDisplay(fish: Fish, isReelingComplete: Boolean) {
 
     LaunchedEffect(isReelingComplete) {
         if (isReelingComplete) {
-            delay(1000)
+            delay(1000)  // Vänta lite längre innan fisken visas
             isVisible = true
         }
     }
 
     AnimatedVisibility(
         visible = isVisible,
-        enter = expandIn(),
+        enter = expandIn(
+            animationSpec = tween(
+                durationMillis = 1000,
+                easing = FastOutSlowInEasing
+            )
+        ),
         exit = fadeOut()
     ) {
         Column(
@@ -591,16 +586,26 @@ fun FishDisplay(fish: Fish, isReelingComplete: Boolean) {
                 .wrapContentHeight(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Image(
-                painter = painterResource(id = fishImage),
-                contentDescription = "Fish Image",
-                modifier = Modifier.size(200.dp)
+            Text(
+                text = "Du fångade en ${fish.type}!",
+                color = Color(0xFF90EE90),
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 28.sp,
+                    letterSpacing = 0.5.sp,
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.6f),
+                        offset = Offset(2f, 2f),
+                        blurRadius = 3f
+                    )
+                ),
+                modifier = Modifier.padding(bottom = 16.dp)
             )
             
-            Text(
-                text = "Du fångade en ${fish.type} som väger ${fish.weight}kg!",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 8.dp)
+            Image(
+                painter = painterResource(id = fishImage),
+                contentDescription = "Fiskbild",
+                modifier = Modifier.size(200.dp)
             )
         }
     }
@@ -664,34 +669,6 @@ private fun updateAchievements(player: Player, fish: Fish) {
             }
         }
     }
-}
-
-private fun updateDailyChallenge(player: Player, challenge: DailyChallenge, fish: Fish) {
-    val currentProgress = player.dailyChallengeProgress.getOrDefault(challenge.id, 0)
-
-    if (!isChallengeComplete(player, challenge)) {
-        if (challenge.targetFishType == null || challenge.targetFishType == fish.type) {
-            player.dailyChallengeProgress[challenge.id] = currentProgress + 1
-
-            if (currentProgress + 1 >= challenge.targetCount) {
-                player.score += 100
-                player.completedChallenges++
-                player.totalChallengeBonus += 100
-
-                FirebaseManager.updatePlayer(player) { success ->
-                    if (success) {
-                        Log.d("Challenge", "Challenge completed and saved successfully")
-                    } else {
-                        Log.e("Challenge", "Failed to save challenge completion")
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun isChallengeComplete(player: Player, challenge: DailyChallenge): Boolean {
-    return player.dailyChallengeProgress.getOrDefault(challenge.id, 0) >= challenge.targetCount
 }
 
 fun updatePlayerProgress(player: Player, fish: Fish) {
