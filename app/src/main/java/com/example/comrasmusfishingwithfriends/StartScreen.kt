@@ -23,6 +23,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.navigation.NavHostController
 
 @Composable
 fun StartScreen(
@@ -30,7 +31,8 @@ fun StartScreen(
     onGoFishTogetherClick: () -> Unit,
     onLeaderboardClick: () -> Unit,
     playerScore: Int,
-    currentPlayer: Player
+    currentPlayer: Player,
+    navController: NavHostController
 ) {
     val backgroundImage = painterResource(id = R.drawable.bakgrunden)
     val tier = getTier(playerScore)
@@ -146,7 +148,9 @@ fun StartScreen(
 
             Button(
                 modifier = Modifier.padding(bottom = 16.dp),
-                onClick = onGoFishingClick
+                onClick = {
+                    navController.navigate("map_selection_screen")
+                }
             ) {
                 Text(text = "Go Fishing")
             }
@@ -502,17 +506,7 @@ data class Tier(
     val description: String
 )
 
-@Preview
-@Composable
-fun PreviewStartScreen() {
-    StartScreen(
-        onGoFishingClick = {},
-        onGoFishTogetherClick = {},
-        onLeaderboardClick = {},
-        playerScore = 350, // exempel
-        currentPlayer = Player()
-    )
-}
+
 
 @Composable
 private fun InfoMenu(onClose: () -> Unit) {

@@ -37,7 +37,7 @@ fun FishingApp(navController: NavHostController) {
             currentPlayer?.let { player ->
                 StartScreen(
                     onGoFishingClick = {
-                        navController.navigate("fishing_game_screen")
+                        navController.navigate("map_selection_screen")
                     },
                     onGoFishTogetherClick = {
                         navController.navigate("multiplayer_fishing_game_screen")
@@ -46,7 +46,8 @@ fun FishingApp(navController: NavHostController) {
                         navController.navigate("leaderboard_screen")
                     },
                     playerScore = player.score,
-                    currentPlayer = player
+                    currentPlayer = player,
+                    navController = navController
                 )
             } ?: run {
                 LaunchedEffect(Unit) {
@@ -68,12 +69,51 @@ fun FishingApp(navController: NavHostController) {
             }
         }
 
+        composable("fishing_game_screen2") {
+            currentPlayer?.let { player ->
+                FishingGameScreen2(
+                    currentPlayer = player,
+                    navController = navController
+                )
+            } ?: run {
+                LaunchedEffect(Unit) {
+                    navController.navigate("user_creation_screen")
+                }
+            }
+        }
+
+        composable("fishing_game_screen3") {
+            currentPlayer?.let { player ->
+                FishingGameScreen3(
+                    currentPlayer = player,
+                    navController = navController
+                )
+            } ?: run {
+                LaunchedEffect(Unit) {
+                    navController.navigate("user_creation_screen")
+                }
+            }
+        }
+
         composable("multiplayer_fishing_game_screen") {
             MultiplayerFishingGameScreen()
         }
 
         composable("leaderboard_screen") {
             LeaderboardScreen(navController = navController)
+        }
+
+        composable("map_selection_screen") {
+            currentPlayer?.let { player ->
+                MapSelectionScreen(
+                    currentPlayer = player,
+                    navController = navController
+                )
+            } ?: run {
+                LaunchedEffect(Unit) {
+                    navController.navigate("user_creation_screen")
+                }
+            }
         }
     }
 }

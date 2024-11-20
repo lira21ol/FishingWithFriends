@@ -560,15 +560,25 @@ fun updatePlayerScore(playerName: String, player: Player, onComplete: (Boolean) 
 @Composable
 fun FishDisplay(fish: Fish, isReelingComplete: Boolean) {
     val fishImages = mapOf(
-        "Salmon" to R.drawable.salmon,
         "Trout" to R.drawable.trout,
         "Bass" to R.drawable.bass,
         "Catfish" to R.drawable.catfish,
         "Carp" to R.drawable.carp,
         "Pike" to R.drawable.pike,
         "Goldfish" to R.drawable.goldfish,
-        "Dragonfish" to R.drawable.dragonfish,
-        "Great White Shark" to R.drawable.shark
+        "Tuna" to R.drawable.tuna,
+        "Swordfish" to R.drawable.swordfish,
+        "Shark" to R.drawable.shark,
+        "Dolphinfish" to R.drawable.dolphinfish,
+        "Marlin" to R.drawable.marlin,
+        "Octopus" to R.drawable.octopus,
+        "Giant Squid" to R.drawable.giantsquid,
+        "Salmon" to R.drawable.salmon,
+        "Rainbow Trout" to R.drawable.rainbowtrout,
+        "Sturgeon" to R.drawable.sturgeon,
+        "Eel" to R.drawable.eel,
+        "Arctic Char" to R.drawable.arcticchar,
+        "Grayling" to R.drawable.grayling
     )
     val fishImage = fishImages[fish.type] ?: R.drawable.bones
 
@@ -694,7 +704,7 @@ private fun isChallengeComplete(player: Player, challenge: DailyChallenge): Bool
     return player.dailyChallengeProgress.getOrDefault(challenge.id, 0) >= challenge.targetCount
 }
 
-private fun updatePlayerProgress(player: Player, fish: Fish) {
+fun updatePlayerProgress(player: Player, fish: Fish) {
     // Uppdatera fiskekatalog
     player.fishCatalog.addCatch(fish)
 
