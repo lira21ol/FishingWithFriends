@@ -16,10 +16,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ComrasmusfishingwithfriendsTheme {
-                val navController = rememberNavController()
-
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    FishingApp(navController = navController)
+                    FishingApp()
                 }
             }
         }

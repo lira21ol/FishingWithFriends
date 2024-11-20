@@ -580,8 +580,8 @@ fun FishDisplay(fish: Fish, isReelingComplete: Boolean) {
         "Arctic Char" to R.drawable.arcticchar,
         "Grayling" to R.drawable.grayling
     )
+    
     val fishImage = fishImages[fish.type] ?: R.drawable.bones
-
     var isVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(isReelingComplete) {
@@ -608,8 +608,10 @@ fun FishDisplay(fish: Fish, isReelingComplete: Boolean) {
                 contentDescription = "Fish Image",
                 modifier = Modifier.size(200.dp)
             )
+            
             Text(
-                text = "Caught a ${fish.type} weighing ${fish.weight}kg!",
+                text = "Du fångade en ${fish.type} som väger ${fish.weight}kg!",
+                style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = 8.dp)
             )
         }

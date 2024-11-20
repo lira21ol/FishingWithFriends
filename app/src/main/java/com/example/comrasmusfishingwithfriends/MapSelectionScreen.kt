@@ -75,11 +75,15 @@ fun MapSelectionScreen(
             // Boss Arena
             MapCard(
                 title = "Boss Arena",
-                description = "Utmana den legendariska bossfisken!",
-                imageId = R.drawable.bakgrunden, // Ändra till bossbild
+                description = "Utmana den legendariska Kraken!",
+                imageId = R.drawable.kraken_phase1,
                 isLocked = currentPlayer.score < 2000,
                 requiredScore = 2000,
-                onClick = { /* Implementera senare */ }
+                onClick = { 
+                    if (currentPlayer.score >= 2000) {
+                        navController.navigate("kraken_boss")
+                    }
+                }
             )
         }
 

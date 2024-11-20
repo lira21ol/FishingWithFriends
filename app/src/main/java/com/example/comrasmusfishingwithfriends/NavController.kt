@@ -9,12 +9,45 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.navigation.compose.rememberNavController
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
-fun FishingApp(navController: NavHostController) {
+fun FishingApp() {
+    val navController = rememberNavController()
     var currentPlayer by remember { mutableStateOf<Player?>(null) }
 
-    NavHost(navController = navController, startDestination = "user_creation_screen") {
+    LaunchedEffect(Unit) {
+        val auth = FirebaseAuth.getInstance()
+        if (auth.currentUser != null) {
+            FirebaseManager.loadPlayer(auth.currentUser!!.uid)?.let { loadedPlayer ->
+                val newCatalog = FishCatalog().apply {
+                    loadedPlayer.fishCatalog.discoveredFish.forEach { (fishType, count) ->
+                        this.discoveredFish[fishType] = count
+                    }
+                    loadedPlayer.fishCatalog.caughtFish.forEach { (fishType, count) ->
+                        this.caughtFish[fishType] = count
+                    }
+                }
+
+                currentPlayer = loadedPlayer.copy(
+                    fishCatalog = newCatalog,
+                    score = loadedPlayer.score,
+                    achievements = loadedPlayer.achievements,
+                    unlockedRods = loadedPlayer.unlockedRods,
+                    currentRodId = loadedPlayer.currentRodId,
+                    dailyChallengeProgress = loadedPlayer.dailyChallengeProgress,
+                    completedChallenges = loadedPlayer.completedChallenges,
+                    totalChallengeBonus = loadedPlayer.totalChallengeBonus
+                )
+            }
+        }
+    }
+
+    NavHost(
+        navController = navController,
+        startDestination = "start_screen"
+    ) {
         composable("user_creation_screen") {
             UserCreationScreen(
                 onUserCreated = { player ->
@@ -26,14 +59,6 @@ fun FishingApp(navController: NavHostController) {
         }
 
         composable("start_screen") {
-            LaunchedEffect(Unit) {
-                currentPlayer?.let { player ->
-                    FirebaseManager.loadPlayer(player.playerId)?.let { loadedPlayer ->
-                        currentPlayer = loadedPlayer
-                    }
-                }
-            }
-
             currentPlayer?.let { player ->
                 StartScreen(
                     onGoFishingClick = {
@@ -85,6 +110,19 @@ fun FishingApp(navController: NavHostController) {
         composable("fishing_game_screen3") {
             currentPlayer?.let { player ->
                 FishingGameScreen3(
+                    currentPlayer = player,
+                    navController = navController
+                )
+            } ?: run {
+                LaunchedEffect(Unit) {
+                    navController.navigate("user_creation_screen")
+                }
+            }
+        }
+
+        composable("kraken_boss") {
+            currentPlayer?.let { player ->
+                KrakenBossScreen(
                     currentPlayer = player,
                     navController = navController
                 )

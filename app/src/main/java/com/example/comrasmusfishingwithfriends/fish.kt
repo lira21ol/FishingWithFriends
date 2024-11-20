@@ -1,14 +1,25 @@
 package com.example.comrasmusfishingwithfriends
 
+enum class FishRarity {
+    COMMON,
+    UNCOMMON,
+    RARE,
+    EPIC,
+    LEGENDARY
+}
+
 data class Fish(
     val type: String,
-    val weight: Double = (1..10).random().toDouble(),
-    val points: Int
+    val rarity: FishRarity = FishRarity.COMMON,
+    val points: Int = 10,
+    val weight: Double = generateRandomWeight(),
+    val description: String = ""
 ) {
-    constructor() : this(
-        type = getRandomFishType(),
-        points = getFishPoints(getRandomFishType())
-    )
+    companion object {
+        fun generateRandomWeight(): Double {
+            return (1..20).random() + Math.random()
+        }
+    }
 }
 
 fun getRandomFishType(): String {

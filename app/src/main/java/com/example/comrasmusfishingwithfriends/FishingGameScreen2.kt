@@ -112,9 +112,9 @@ fun FishingGameScreen2(
             if (!isFishCaught) {
                 FishingRod(
                     rodImage = when {
-                        isCasting -> painterResource(id = R.drawable.rod)
+                        isCasting -> painterResource(id = R.drawable.harpoon)
                         reeling.isReeling -> painterResource(id = R.drawable.rodstruggling)
-                        else -> painterResource(id = R.drawable.rod)
+                        else -> painterResource(id = R.drawable.harpoon)
                     },
                     isCasting = isCasting,
                     isReeling = reeling.isReeling
@@ -285,7 +285,7 @@ private fun OceanBackground(modifier: Modifier = Modifier) {
 @Composable
 private fun CastButton(onClick: () -> Unit) {
     Image(
-        painter = painterResource(id = R.drawable.reelbilden),
+        painter = painterResource(id = R.drawable.harpoon),
         contentDescription = "Kasta",
         modifier = Modifier
             .size(80.dp)
