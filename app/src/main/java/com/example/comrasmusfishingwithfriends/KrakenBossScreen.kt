@@ -31,13 +31,37 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.times
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.times
 import kotlinx.coroutines.CoroutineScope
 import kotlin.math.abs
+import kotlin.random.Random
 
+// Lägg till dessa högst upp i filen, utanför KrakenBossScreen
+enum class AttackType {
+    INK,
+    TENTACLE
+}
+
+data class InkSpot(
+    val id: Int,
+    val position: Offset,
+    var isActive: Boolean = true
+)
+
+// Lägg till denna funktion utanför KrakenBossScreen composable
+fun getRandomAttack(): AttackType {
+    return if (Random.nextFloat() < 0.5f) {
+        AttackType.INK
+    } else {
+        AttackType.TENTACLE
+    }
+}
 
 @Composable
 fun KrakenBossScreen(
@@ -51,18 +75,12 @@ fun KrakenBossScreen(
     }
 
     var kraken by remember { mutableStateOf(Kraken()) }
-    var isFishing by remember { mutableStateOf(false) }
-    var isReeling by remember { mutableStateOf(false) }
     var showTentacle by remember { mutableStateOf(false) }
     var sliceCount by remember { mutableStateOf(0) }
-    var reelingStartTime by remember { mutableStateOf(0L) }
     var sliceStartTime by remember { mutableStateOf(0L) }
     var isGameOver by remember { mutableStateOf(false) }
-    val reeling = remember { Reeling() }
     val scope = rememberCoroutineScope()
     
-    var isReelRotating by remember { mutableStateOf(false) }
-    val rotationState = remember { Animatable(0f) }
     var shouldRotate by remember { mutableStateOf(false) }
     
     // Gesture state
@@ -76,9 +94,27 @@ fun KrakenBossScreen(
     // Lägg till nya state-variabler
     var showSuccessCheck by remember { mutableStateOf(false) }
     
+    var isInkAttack by remember { mutableStateOf(false) }
+    var inkSpots by remember { mutableStateOf(listOf<InkSpot>()) }
+    var inkAttackTimer by remember { mutableIntStateOf(0) }
+    
+    // Lägg till efter andra state-variabler
+    var currentAttackType by remember { mutableStateOf<AttackType?>(null) }
+    
+    // Lägg till en ny state-variabel för attack-meddelanden
+    var attackMessage by remember { mutableStateOf("") }
+    var showAttackMessage by remember { mutableStateOf(false) }
+    
+    // Funktion för att visa attack-meddelande
+    fun showAttackMessage(message: String) {
+        attackMessage = message
+        showAttackMessage = true
+    }
+    
     // Timer för slicing
     LaunchedEffect(showTentacle) {
         if (showTentacle) {
+            showAttackMessage = true
             sliceStartTime = System.currentTimeMillis()
             while (showTentacle && !isGameOver) {
                 delay(100)
@@ -87,12 +123,15 @@ fun KrakenBossScreen(
                     showTentacle = false
                 }
             }
+            showAttackMessage = false
         }
     }
 
-    var isCasting by remember { mutableStateOf(false) }
+    var showAttackButton by remember { mutableStateOf(true) }
 
-    var showFishingRod by remember { mutableStateOf(true) }
+    // Lägg till dessa state-variabler i början av KrakenBossScreen
+    var attackProgress by remember { mutableFloatStateOf(0f) }
+    var isChargingAttack by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -154,6 +193,9 @@ fun KrakenBossScreen(
 
         // Förbättrad tentakel-skärningsanimation
         if (showTentacle) {
+            // Visa meddelande för tentakel-attack
+            showAttackMessage("Kraken slår med sin tentakel - Dra åt höger för att hugga av den!")
+            
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -180,176 +222,15 @@ fun KrakenBossScreen(
                                     sliceProgress = 0f
                                     currentSliceX = 0f
                                     
-                                    // Återställ för nästa runda
                                     scope.launch {
                                         delay(1000)
                                         showCutTentacle = false
-                                        showFishingRod = true
-                                        isFishing = false
-                                        reeling.stopReeling()
+                                        showAttackButton = true
                                     }
                                 }
                             }
                         }
                 )
-            }
-        }
-
-        // Förbättrade spelkontroller
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Reeling-kontroller med förbättrad visuell feedback
-            if (reeling.isReeling) {
-                Box(
-                    modifier = Modifier
-                        .width(200.dp)
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color.Gray.copy(alpha = 0.3f))
-                ) {
-                    Reeling.phases.forEachIndexed { index, phase ->
-                        if (index <= reeling.currentPhase) {
-                            val endFraction = if (index == reeling.currentPhase) {
-                                (index.toFloat() + reeling.phaseProgress) / Reeling.phases.size
-                            } else {
-                                (index + 1f) / Reeling.phases.size
-                            }
-                            
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .fillMaxWidth(endFraction)
-                                    .background(phase.color)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // Reeling-knapp
-                Image(
-                    painter = painterResource(id = R.drawable.reelbilden),
-                    contentDescription = "Reel In",
-                    modifier = Modifier
-                        .size(80.dp)
-                        .graphicsLayer {
-                            rotationZ = if (shouldRotate) rotationState.value else 0f
-                        }
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onPress = {
-                                    scope.launch {
-                                        reeling.isHolding = true
-                                        shouldRotate = true
-                                        isReelRotating = true
-                                        
-                                        while (reeling.isHolding) {
-                                            if (reeling.updateProgress(true)) {
-                                                if (reeling.completePhase()) {
-                                                    showFishingRod = false
-                                                    showTentacle = true
-                                                    kraken.isVulnerable = true
-                                                    break
-                                                }
-                                            }
-                                            delay(16)
-                                        }
-
-                                        awaitRelease()
-                                        reeling.isHolding = false
-                                        isReelRotating = false
-                                        shouldRotate = false
-                                    }
-                                }
-                            )
-                        }
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Visa fiskespö och reeling progress
-                if (showFishingRod) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Fiskespö-knapp
-                        Image(
-                            painter = painterResource(
-                                id = when {
-                                    isCasting -> R.drawable.rod
-                                    reeling.isReeling -> R.drawable.rodstruggling
-                                    else -> R.drawable.rod
-                                }
-                            ),
-                            contentDescription = if (reeling.isReeling) "Dra in" else "Kasta",
-                            modifier = Modifier
-                                .size(80.dp)
-                                .graphicsLayer {
-                                    rotationZ = if (shouldRotate) rotationState.value else 0f
-                                }
-                                .clickable {
-                                    if (!isFishing && !showTentacle) {
-                                        // Starta fisket
-                                        isFishing = true
-                                        isCasting = true
-                                        reeling.startReeling()
-                                        scope.launch {
-                                            delay(1000)
-                                            isCasting = false
-                                            
-                                            // Börja dra in
-                                            while (reeling.isReeling && !reeling.isComplete()) {
-                                                reeling.reelIn(scope)
-                                                delay(100)
-                                            }
-                                            
-                                            // När reeling är klar, visa tentakeln
-                                            if (reeling.isComplete()) {
-                                                showFishingRod = false
-                                                showTentacle = true
-                                                kraken.isVulnerable = true
-                                            }
-                                        }
-                                    } else if (reeling.isReeling) {
-                                        // Öka reeling progress när spelaren klickar
-                                        scope.launch {
-                                            shouldRotate = true
-                                            isReelRotating = true
-                                            reeling.reelIn(scope)
-                                            delay(100)
-                                            isReelRotating = false
-                                            shouldRotate = false
-                                        }
-                                    }
-                                }
-                        )
-                    }
-                }
-
-                // Kniv (visas endast när tentakeln är synlig)
-                if (showTentacle) {
-                    Image(
-                        painter = painterResource(id = R.drawable.knife),
-                        contentDescription = "Kniv",
-                        modifier = Modifier
-                            .size(80.dp)
-                            .graphicsLayer {
-                                rotationZ = slashProgress * 360f
-                            }
-                    )
-                }
             }
         }
 
@@ -383,20 +264,264 @@ fun KrakenBossScreen(
                 navController = navController
             )
         }
+
+        // Lägg till inuti den yttersta Box, efter andra element
+        if (isInkAttack) {
+            // Overlay för bläckattacken
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f))
+            ) {
+                // Timer och räknare högst upp
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Tid kvar: ${10 - inkAttackTimer} sekunder",
+                        color = Color.White,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Text(
+                        text = "Aktiva bläckfläckar: ${inkSpots.count { it.isActive }}/2",
+                        color = when {
+                            inkSpots.count { it.isActive } > 2 -> Color.Red
+                            inkSpots.count { it.isActive } == 2 -> Color(0xFFFFAA00) // Orange varningsfärg
+                            else -> Color.White
+                        },
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                // Spelområde för bläckfläckar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(600.dp)
+                        .padding(top = 300.dp) // Säkerställ att detta område börjar under all infotext
+                ) {
+                    inkSpots.forEach { inkSpot ->
+                        if (inkSpot.isActive) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ink_splat),
+                                contentDescription = "Bläckfläck",
+                                modifier = Modifier
+                                    .size(100.dp) // Något mindre storlek för bättre spelbarhet
+                                    .offset(
+                                        x = inkSpot.position.x.dp,
+                                        y = (inkSpot.position.y - 300f).dp // Justera y-position relativt till spelområdet
+                                    )
+                                    .clickable {
+                                        inkSpots = inkSpots.map {
+                                            if (it.id == inkSpot.id) it.copy(isActive = false)
+                                            else it
+                                        }
+                                    }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Lägg till attack-meddelande överst i Box
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+        ) {
+            // Existerande innehåll...
+
+            // Attack-meddelande
+            AnimatedVisibility(
+                visible = showAttackMessage,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 100.dp)
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF1E1E1E).copy(alpha = 0.9f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = attackMessage,
+                        color = Color.White,
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.padding(16.dp),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+
+            // Attack-knapp och progress bar
+            if (!isInkAttack && !showTentacle && showAttackButton) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Progress bar
+                    Box(
+                        modifier = Modifier
+                            .width(200.dp)
+                            .height(16.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Gray.copy(alpha = 0.3f))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(attackProgress)
+                                .background(
+                                    when {
+                                        attackProgress < 0.5f -> Color(0xFF4CAF50)
+                                        attackProgress < 0.8f -> Color(0xFFFFEB3B)
+                                        else -> Color(0xFFFF5252)
+                                    }
+                                )
+                        )
+                    }
+
+                    // Kniv-bild istället för knapp
+                    Image(
+                        painter = painterResource(id = R.drawable.knife),
+                        contentDescription = "Attack",
+                        modifier = Modifier
+                            .size(100.dp)
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onPress = { pressPosition ->
+                                        try {
+                                            isChargingAttack = true
+                                            scope.launch {
+                                                while (isChargingAttack) {
+                                                    attackProgress = (attackProgress + 0.05f).coerceIn(0f, 1f)
+                                                    if (attackProgress >= 1f) {
+                                                        break
+                                                    }
+                                                    delay(50)
+                                                }
+                                                
+                                                if (attackProgress >= 1f) {
+                                                    showAttackButton = false
+                                                    showAttackMessage("Kraken förbereder sin attack!")
+                                                    delay(1000)
+                                                    
+                                                    val attack = getRandomAttack()
+                                                    when (attack) {
+                                                        AttackType.INK -> {
+                                                            isInkAttack = true
+                                                            inkSpots = emptyList()
+                                                            inkAttackTimer = 0
+                                                        }
+                                                        AttackType.TENTACLE -> {
+                                                            showTentacle = true
+                                                            kraken.isVulnerable = true
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            
+                                            awaitRelease()
+                                        } finally {
+                                            isChargingAttack = false
+                                            attackProgress = 0f
+                                        }
+                                    }
+                                )
+                            }
+                    )
+                }
+            }
+
+            // Resten av innehållet...
+        }
     }
 
-    // Rotationsanimation
-    LaunchedEffect(isReelRotating) {
-        if (isReelRotating && shouldRotate) {
-            rotationState.animateTo(
-                targetValue = rotationState.value + 360f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1000, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart
+
+
+    // Modifiera LaunchedEffect för bläckattacken för att visa attack-knappen efter attacken
+    LaunchedEffect(isInkAttack) {
+        if (isInkAttack) {
+            showAttackMessage("Kraken sprutar bläck - Klicka på bläckfläckarna!")
+            inkAttackTimer = 0
+            inkSpots = emptyList()
+            
+            // Definiera ett tydligare spelområde
+            val topMargin = 300f  // Ökat utrymme för att säkert komma under all infotext
+            val playableHeight = 600f  // Minskat spelområde för bättre kontroll
+            val playableWidth = 300f   // Minskat för att hålla fläckarna mer centrerade
+            
+            while (inkAttackTimer < 10 && !isGameOver) {
+                delay(1000)
+                inkAttackTimer++
+                
+                if (Random.nextFloat() < 0.7f) {
+                    val numSpots = Random.nextInt(1, 2) // Minskat till max 1 ny fläck åt gången
+                    repeat(numSpots) {
+                        inkSpots = inkSpots + InkSpot(
+                            id = inkSpots.size,
+                            position = Offset(
+                                // Centrera fläckarna mer på skärmen
+                                x = Random.nextFloat() * playableWidth + 150f, // Lägg till offset för centrering
+                                y = Random.nextFloat() * playableHeight + topMargin
+                            )
+                        )
+                    }
+                }
+            }
+            
+            if (inkSpots.count { it.isActive } > 2) {
+                isGameOver = true
+            } else {
+                kraken.takeDamage(50)
+            }
+            
+            // Återställ för nästa attack
+            isInkAttack = false
+            inkSpots = emptyList()
+            showAttackMessage = false
+            showAttackButton = true  // Visa attack-knappen igen
+        }
+    }
+
+    if (isGameOver) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.8f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Game Over!",
+                    color = Color.Red,
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.Bold
                 )
-            )
-        } else {
-            rotationState.snapTo(0f)
+                Button(
+                    onClick = {
+                        navController.navigate("start_screen") {
+                            popUpTo("start_screen") { inclusive = true }
+                        }
+                    }
+                ) {
+                    Text("Återvänd till start")
+                }
+            }
         }
     }
 }
@@ -438,10 +563,8 @@ private fun VictoryScreen(
                 )
                 Button(
                     onClick = {
-                        // Uppdatera spelarens poäng
                         currentPlayer.score += 1000
                         
-                        // Skapa en FishEntry istället för Fish
                         val fishEntry = FishEntry(
                             fishType = "Kraken",
                             timesCaught = 1,
@@ -450,11 +573,9 @@ private fun VictoryScreen(
                             location = "Boss Arena"
                         )
                         
-                        // Uppdatera fiskkatalogen direkt
                         currentPlayer.fishCatalog.catalog["Kraken"] = fishEntry
                         currentPlayer.fishCatalog.caughtFish["Kraken"] = 1
                         
-                        // Uppdatera Firebase
                         FirebaseManager.updatePlayer(currentPlayer) { success ->
                             if (success) {
                                 navController.navigate("start_screen") {
