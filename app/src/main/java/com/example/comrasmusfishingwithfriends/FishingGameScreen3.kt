@@ -140,9 +140,9 @@ fun FishingGameScreen3(currentPlayer: Player, navController: NavHostController) 
             if (!isFishCaught) {
                 FishingRod(
                     rodImage = when {
-                        isCasting -> painterResource(id = R.drawable.rod)
-                        reeling.isReeling -> painterResource(id = R.drawable.rodstruggling)
-                        else -> painterResource(id = R.drawable.rod)
+                        isCasting -> painterResource(id = R.drawable.golden_rod)
+                        reeling.isReeling -> painterResource(id = R.drawable.golden_rod)
+                        else -> painterResource(id = R.drawable.golden_rod)
                     },
                     isCasting = isCasting,
                     isReeling = reeling.isReeling

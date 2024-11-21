@@ -206,14 +206,70 @@ fun KrakenBossScreen(
         ) {
             // Reeling-kontroller med förbättrad visuell feedback
             if (reeling.isReeling) {
-                LinearProgressIndicator(
-                    progress = { reeling.rollProgress },
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .height(12.dp)
-                        .clip(RoundedCornerShape(6.dp)),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = Color(0x33FFFFFF)
+                        .width(200.dp)
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.Gray.copy(alpha = 0.3f))
+                ) {
+                    Reeling.phases.forEachIndexed { index, phase ->
+                        if (index <= reeling.currentPhase) {
+                            val endFraction = if (index == reeling.currentPhase) {
+                                (index.toFloat() + reeling.phaseProgress) / Reeling.phases.size
+                            } else {
+                                (index + 1f) / Reeling.phases.size
+                            }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(endFraction)
+                                    .background(phase.color)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Reeling-knapp
+                Image(
+                    painter = painterResource(id = R.drawable.reelbilden),
+                    contentDescription = "Reel In",
+                    modifier = Modifier
+                        .size(80.dp)
+                        .graphicsLayer {
+                            rotationZ = if (shouldRotate) rotationState.value else 0f
+                        }
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onPress = {
+                                    scope.launch {
+                                        reeling.isHolding = true
+                                        shouldRotate = true
+                                        isReelRotating = true
+                                        
+                                        while (reeling.isHolding) {
+                                            if (reeling.updateProgress(true)) {
+                                                if (reeling.completePhase()) {
+                                                    showFishingRod = false
+                                                    showTentacle = true
+                                                    kraken.isVulnerable = true
+                                                    break
+                                                }
+                                            }
+                                            delay(16)
+                                        }
+
+                                        awaitRelease()
+                                        reeling.isHolding = false
+                                        isReelRotating = false
+                                        shouldRotate = false
+                                    }
+                                }
+                            )
+                        }
                 )
             }
 
@@ -228,17 +284,6 @@ fun KrakenBossScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Reeling progress bar
-                        if (reeling.isReeling) {
-                            LinearProgressIndicator(
-                                progress = { reeling.rollProgress },
-                                modifier = Modifier
-                                    .width(200.dp)
-                                    .height(8.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                            )
-                        }
-
                         // Fiskespö-knapp
                         Image(
                             painter = painterResource(

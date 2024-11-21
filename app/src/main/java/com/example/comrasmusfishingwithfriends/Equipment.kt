@@ -31,12 +31,12 @@ object EquipmentShop {
             false
         ),
         FishingRodType(
-            "master_rod",
-            "Mästerspö",
-            "Det bästa spöt för experter",
+            "knife",
+            "Killerknife",
+            "Kniven för att döda kraken",
             1000,
             2.0f,
-            R.drawable.rod,
+            R.drawable.knife,
             false
         )
     )

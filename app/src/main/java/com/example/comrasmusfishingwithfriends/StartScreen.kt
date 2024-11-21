@@ -74,34 +74,40 @@ fun StartScreen(
         )
 
         // Menyrad högst upp
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(16.dp)
         ) {
-            // Info-knapp (befintlig)
-            MenuButton(
-                icon = R.drawable.ic_info,
-                text = "Spelinfo",
-                onClick = { showInfoMenu = !showInfoMenu }
-            )
+            // Övre rad med spelinfo, prestationer och utrustning
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Info-knapp
+                MenuButton(
+                    icon = R.drawable.ic_info,
+                    text = "Spelinfo",
+                    onClick = { showInfoMenu = !showInfoMenu }
+                )
 
-            // Achievements-knapp
-            MenuButton(
-                icon = R.drawable.ic_star,
-                text = "Prestationer",
-                onClick = { showAchievementsMenu = !showAchievementsMenu }
-            )
+                // Achievements-knapp
+                MenuButton(
+                    icon = R.drawable.ic_star,
+                    text = "Prestationer",
+                    onClick = { showAchievementsMenu = !showAchievementsMenu }
+                )
 
-            // Utrustning-knapp
-            MenuButton(
-                icon = R.drawable.rod,
-                text = "Utrustning",
-                onClick = { showEquipmentMenu = !showEquipmentMenu }
-            )
+                // Utrustning-knapp
+                MenuButton(
+                    icon = R.drawable.rod,
+                    text = "Utrustning",
+                    onClick = { showEquipmentMenu = !showEquipmentMenu }
+                )
+            }
 
-            // Katalog-knapp
+            // Fiskekatalog på egen rad under
+            Spacer(modifier = Modifier.height(8.dp))
             MenuButton(
                 icon = R.drawable.ic_menu,
                 text = "Fiskekatalog",
@@ -109,35 +115,7 @@ fun StartScreen(
             )
         }
 
-
-        // Achievements-meny
-        if (showAchievementsMenu) {
-            AchievementsMenu(
-                currentPlayer = currentPlayer,
-                onClose = { showAchievementsMenu = false }
-            )
-        }
-
-        // Utrustning-meny
-        if (showEquipmentMenu) {
-            EquipmentMenu(
-                currentPlayer = currentPlayer,
-                onClose = { showEquipmentMenu = false }
-            )
-        }
-
-        // Katalog-meny
-        if (showCatalogMenu) {
-            FishCatalogMenu(
-                currentPlayer = currentPlayer,
-                onClose = { showCatalogMenu = false }
-            )
-        }
-
-        if (showInfoMenu) {
-            InfoMenu(onClose = { showInfoMenu = false })
-        }
-
+        // Huvudinnehåll i mitten (utan fiskekatalog)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
@@ -187,6 +165,34 @@ fun StartScreen(
             ) {
                 Text(text = "Leaderboard")
             }
+        }
+
+        // Achievements-meny
+        if (showAchievementsMenu) {
+            AchievementsMenu(
+                currentPlayer = currentPlayer,
+                onClose = { showAchievementsMenu = false }
+            )
+        }
+
+        // Utrustning-meny
+        if (showEquipmentMenu) {
+            EquipmentMenu(
+                currentPlayer = currentPlayer,
+                onClose = { showEquipmentMenu = false }
+            )
+        }
+
+        // Katalog-meny
+        if (showCatalogMenu) {
+            FishCatalogMenu(
+                currentPlayer = currentPlayer,
+                onClose = { showCatalogMenu = false }
+            )
+        }
+
+        if (showInfoMenu) {
+            InfoMenu(onClose = { showInfoMenu = false })
         }
     }
 }
