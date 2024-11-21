@@ -98,6 +98,10 @@ fun getFishPoints(fishType: String): Int {
         "Eel" -> 18
         "Arctic Char" -> 16
         "Grayling" -> 10
+        "Hammerhead Shark" -> 45
+        "Dolphin" -> 35
+        "Manta Ray" -> 40
+        "Crocodile" -> 50
         else -> 1
     }
 }

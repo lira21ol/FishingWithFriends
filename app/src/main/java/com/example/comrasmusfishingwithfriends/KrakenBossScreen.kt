@@ -33,6 +33,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.times
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -133,6 +134,21 @@ fun KrakenBossScreen(
     var attackProgress by remember { mutableFloatStateOf(0f) }
     var isChargingAttack by remember { mutableStateOf(false) }
 
+    var isShaking by remember { mutableStateOf(false) }
+    var showPhaseMessage by remember { mutableStateOf(false) }
+    
+    // Lägg till shake animation
+    val shakeAnimation = rememberInfiniteTransition(label = "shake")
+    val shake = shakeAnimation.animateFloat(
+        initialValue = -10f,
+        targetValue = 10f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(100, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shake"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -162,7 +178,12 @@ fun KrakenBossScreen(
                 modifier = Modifier
                     .fillMaxWidth(0.7f)
                     .fillMaxHeight(0.7f)
-                    .align(Alignment.Center),
+                    .align(Alignment.Center)
+                    .graphicsLayer {
+                        if (isShaking) {
+                            translationX = shake.value
+                        }
+                    },
                 contentScale = ContentScale.Fit
             )
 
@@ -179,14 +200,52 @@ fun KrakenBossScreen(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 
-                LinearProgressIndicator(
-                    progress = { kraken.health / 1000f },
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(12.dp)
-                        .clip(RoundedCornerShape(6.dp)),
-                    color = Color(0xFFFF4444),
-                    trackColor = Color(0x33FFFFFF)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0x33FFFFFF))  // Mörkare bakgrund
+                ) {
+                    // Vit del som representerar förlorat liv
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth((1000f - kraken.health) / 1000f)
+                            .fillMaxHeight()
+                            .background(Color.White.copy(alpha = 0.3f))
+                            .align(Alignment.CenterEnd)
+                    )
+                    
+                    // Röd del som representerar kvarvarande liv
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(kraken.health / 1000f)
+                            .fillMaxHeight()
+                            .background(Color(0xFFFF4444))
+                            .align(Alignment.CenterStart)
+                    )
+                }
+            }
+
+            // Visa fasändringsmeddelande
+            AnimatedVisibility(
+                visible = showPhaseMessage,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "Kraken blir starkare!",
+                    color = Color.Red,
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 32.sp,
+                        shadow = Shadow(
+                            color = Color.Black,
+                            offset = Offset(2f, 2f),
+                            blurRadius = 4f
+                        )
+                    )
                 )
             }
         }
@@ -457,25 +516,26 @@ fun KrakenBossScreen(
             inkAttackTimer = 0
             inkSpots = emptyList()
             
-            // Definiera ett tydligare spelområde
-            val topMargin = 300f  // Ökat utrymme för att säkert komma under all infotext
-            val playableHeight = 600f  // Minskat spelområde för bättre kontroll
-            val playableWidth = 300f   // Minskat för att hålla fläckarna mer centrerade
+            // Definiera ett säkrare spelområde med marginaler
+            val topMargin = 300f
+            val playableHeight = 500f  // Minskat för att säkerställa synlighet
+            val playableWidth = 200f   // Minskat för bättre kontroll
+            val horizontalMargin = 50f // Marginal från kanterna
             
             while (inkAttackTimer < 10 && !isGameOver) {
                 delay(1000)
                 inkAttackTimer++
                 
                 if (Random.nextFloat() < 0.7f) {
-                    val numSpots = Random.nextInt(1, 2) // Minskat till max 1 ny fläck åt gången
+                    val numSpots = Random.nextInt(1, 2)
                     repeat(numSpots) {
+                        // Beräkna säker position för bläckfläcken
+                        val xPos = horizontalMargin + Random.nextFloat() * playableWidth
+                        val yPos = topMargin + Random.nextFloat() * playableHeight
+                        
                         inkSpots = inkSpots + InkSpot(
                             id = inkSpots.size,
-                            position = Offset(
-                                // Centrera fläckarna mer på skärmen
-                                x = Random.nextFloat() * playableWidth + 150f, // Lägg till offset för centrering
-                                y = Random.nextFloat() * playableHeight + topMargin
-                            )
+                            position = Offset(xPos, yPos)
                         )
                     }
                 }
@@ -522,6 +582,18 @@ fun KrakenBossScreen(
                     Text("Återvänd till start")
                 }
             }
+        }
+    }
+
+    // Lägg till en LaunchedEffect för att hantera fasändringar
+    LaunchedEffect(kraken.currentPhase) {
+        if (kraken.currentPhase > 1) {  // Aktivera bara vid fasändring
+            isShaking = true
+            showPhaseMessage = true
+            delay(2000)  // Skaka i 2 sekunder
+            isShaking = false
+            delay(1000)  // Visa meddelandet lite längre
+            showPhaseMessage = false
         }
     }
 }

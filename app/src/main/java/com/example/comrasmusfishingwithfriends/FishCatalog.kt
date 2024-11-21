@@ -21,7 +21,8 @@ class FishCatalog(
             "Catfish",
             "Carp",
             "Pike",
-            "Goldfish"
+            "Goldfish",
+            "Eel"
         )
         
         val oceanFish = listOf(
@@ -31,7 +32,11 @@ class FishCatalog(
             "Dolphinfish",
             "Marlin",
             "Octopus",
-            "Giant Squid"
+            "Giant Squid",
+            "Hammerhead Shark",
+            "Dolphin",
+            "Manta Ray",
+            "Crocodile"
         )
         
         val riverFish = listOf(
