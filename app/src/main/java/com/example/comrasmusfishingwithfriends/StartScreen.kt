@@ -165,6 +165,45 @@ fun StartScreen(
             ) {
                 Text(text = "Leaderboard")
             }
+
+            // Ny knapp för Boss Arena Co-op
+            Button(
+                onClick = { navController.navigate("boss_arena_coop") },
+                modifier = Modifier
+                    .fillMaxWidth(0.7f)
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (playerScore >= 2000) Color(0xFF4CAF50) else Color.Gray
+                ),
+                enabled = playerScore >= 2000
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(
+                            id = if (playerScore >= 2000) R.drawable.tier_platinum
+                            else R.drawable.ic_lock
+                        ),
+                        contentDescription = "Boss Arena Co-op",
+                        tint = Color.White
+                    )
+                    Text(
+                        text = "Boss Arena Co-op",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            }
+            
+            if (playerScore < 2000) {
+                Text(
+                    text = "Lås upp vid 2000 poäng",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
 
         // Achievements-meny

@@ -46,7 +46,7 @@ fun FishingApp() {
 
     NavHost(
         navController = navController,
-        startDestination = "start_screen"
+        startDestination = "user_creation_screen"
     ) {
         composable("user_creation_screen") {
             UserCreationScreen(
@@ -151,6 +151,31 @@ fun FishingApp() {
                 LaunchedEffect(Unit) {
                     navController.navigate("user_creation_screen")
                 }
+            }
+        }
+
+        composable("boss_arena_coop") {
+            currentPlayer?.let { player ->
+                if (player.score >= 2000) {
+                    CoopLobbyScreen(
+                        currentPlayer = player,
+                        navController = navController,
+                        gameMode = "boss_arena"
+                    )
+                } else {
+                    LaunchedEffect(Unit) {
+                        navController.navigate("start_screen")
+                    }
+                }
+            }
+        }
+
+        composable("kraken_boss_coop") {
+            currentPlayer?.let { player ->
+                KrakenBossCoopScreen(
+                    currentPlayer = player,
+                    navController = navController
+                )
             }
         }
     }
