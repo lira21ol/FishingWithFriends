@@ -110,7 +110,7 @@ fun StartScreen(
             Spacer(modifier = Modifier.height(8.dp))
             MenuButton(
                 icon = R.drawable.ic_menu,
-                text = "Fiskekatalog",
+                text = "Fiskkatalog",
                 onClick = { showCatalogMenu = !showCatalogMenu }
             )
         }
@@ -199,7 +199,7 @@ fun StartScreen(
             
             if (playerScore < 2000) {
                 Text(
-                    text = "Lås upp vid 2000 poäng",
+                    text = "Lås upp ",
                     color = Color.Gray,
                     style = MaterialTheme.typography.bodyMedium
                 )

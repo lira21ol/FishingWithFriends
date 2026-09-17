@@ -37,7 +37,7 @@ fun LeaderboardScreen(navController: NavHostController) {
 
     LaunchedEffect(Unit) {
         val db = FirebaseFirestore.getInstance()
-        db.collection("players")
+        db.collection("gay_players")
             .get()
             .addOnSuccessListener { documents ->
                 Log.d("Leaderboard", "Antal hämtade dokument: ${documents.size()}")
