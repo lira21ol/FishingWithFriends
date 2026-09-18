@@ -204,6 +204,24 @@ fun StartScreen(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
+
+            // Knapp för FreeMode
+            Button(
+                onClick = { navController.navigate("free_mode") },
+                modifier = Modifier
+                    .padding(top = 16.dp)
+                    .fillMaxWidth(0.7f)
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF2196F3)
+                )
+            ) {
+                Text(
+                    text = "FreeMode",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
         }
 
         // Achievements-meny

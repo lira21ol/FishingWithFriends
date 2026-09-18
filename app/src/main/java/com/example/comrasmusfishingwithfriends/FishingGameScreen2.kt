@@ -20,12 +20,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavHostController
-import com.google.android.exoplayer2.C
-import com.google.android.exoplayer2.DefaultLoadControl
-import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
-import com.google.android.exoplayer2.ui.PlayerView
+import androidx.media3.common.C
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.MediaItem
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -362,6 +362,7 @@ private fun setupVideoPlayer(context: android.content.Context): ExoPlayer {
         }
 }
 
+@OptIn(UnstableApi::class)
 @Composable
 private fun OceanBackground(modifier: Modifier = Modifier) {
     val context = LocalContext.current

@@ -1,6 +1,7 @@
 package com.example.comrasmusfishingwithfriends
 
 import android.util.Log
+import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeOut
@@ -36,12 +37,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
-import com.google.android.exoplayer2.C
-import com.google.android.exoplayer2.DefaultLoadControl
-import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
-import com.google.android.exoplayer2.ui.PlayerView
+import androidx.media3.common.C
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -51,6 +53,7 @@ import kotlinx.coroutines.launch
 val db: FirebaseFirestore
     get() = FirebaseFirestore.getInstance()
 
+@OptIn(UnstableApi::class)
 @Composable
 fun FishingGameScreen(currentPlayer: Player, navController: NavHostController) {
     Log.d("FishingGameScreen", "Current player: ${currentPlayer.playerName}, ID: ${currentPlayer.playerId}, Score: ${currentPlayer.score}")

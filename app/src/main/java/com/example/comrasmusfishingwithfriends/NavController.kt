@@ -178,5 +178,9 @@ fun FishingApp() {
                 )
             }
         }
+
+        composable("free_mode") {
+            ThreeDGameScreen(navController = navController)
+        }
     }
 }

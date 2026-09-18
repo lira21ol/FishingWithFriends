@@ -46,13 +46,12 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = "1.8"
-
+        jvmTarget = "17"
     }
 
     buildFeatures {
@@ -91,15 +90,10 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore")
     implementation("androidx.navigation:navigation-compose:2.8.4")
     implementation("com.google.firebase:firebase-auth-ktx:23.1.0")
-    implementation("com.google.android.exoplayer:exoplayer:2.19.1")
-    implementation("com.google.android.exoplayer:exoplayer-core:2.19.1")
-    implementation("com.google.android.exoplayer:exoplayer-ui:2.19.1")
-    implementation("com.google.android.exoplayer:exoplayer-common:2.19.1")
-    implementation("com.google.android.exoplayer:exoplayer-dash:2.19.1")
-    implementation("com.google.android.exoplayer:exoplayer-hls:2.19.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
+    implementation("androidx.media3:media3-common:1.4.1")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
@@ -109,4 +103,6 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     implementation("androidx.startup:startup-runtime:1.2.0")
+    // 3D Rendering with SceneView
+    implementation("io.github.sceneview:sceneview:2.2.1")
 }
