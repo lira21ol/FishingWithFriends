@@ -180,7 +180,13 @@ fun FishingApp() {
         }
 
         composable("free_mode") {
-            ThreeDGameScreen(navController = navController)
+            currentPlayer?.let { player ->
+                ThreeDGameScreen(currentPlayer = player, navController = navController)
+            } ?: run {
+                LaunchedEffect(Unit) {
+                    navController.navigate("user_creation_screen")
+                }
+            }
         }
     }
 }
