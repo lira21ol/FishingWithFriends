@@ -29,6 +29,9 @@ import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
 import io.github.sceneview.node.CameraNode
 import io.github.sceneview.node.ModelNode
+import io.github.sceneview.geometries.Plane
+import io.github.sceneview.math.Size
+import io.github.sceneview.node.RenderableNode
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMaterialLoader
@@ -185,6 +188,9 @@ fun FreeModeGameScreen(
 
     var playerNode by remember { mutableStateOf<ModelNode?>(null) }
     var islandNode by remember { mutableStateOf<ModelNode?>(null) }
+    var dockNodes = remember { mutableStateListOf<ModelNode>() }
+    var waterNode by remember { mutableStateOf<RenderableNode?>(null) }
+    val decorNodes = remember { mutableStateListOf<ModelNode>() }
 
     LaunchedEffect(characterModel) {
         modelLoader.loadModelInstanceAsync(characterModel) { instance ->
@@ -210,9 +216,63 @@ fun FreeModeGameScreen(
                 }
             }
         }
+
+        // Add multiple docks around the island
+        val dockConfigs = listOf(
+            Position(20f, -0.2f, 0f) to Rotation(0f, 90f, 0f),
+            Position(-20f, -0.2f, 5f) to Rotation(0f, -90f, 0f),
+            Position(0f, -0.2f, 20f) to Rotation(0f, 0f, 0f)
+        )
+
+        dockConfigs.forEach { (pos, rot) ->
+            modelLoader.loadModelInstanceAsync("models/Dock Long.glb") { instance ->
+                instance?.let {
+                    dockNodes.add(ModelNode(it, scaleToUnits = 5f).apply {
+                        position = pos
+                        rotation = rot
+                    })
+                }
+            }
+        }
+
+        // Create water plane
+        val waterMaterial = materialLoader.createColorInstance(
+            color = Color(0x880077BE), // Semi-transparent blue
+            metallic = 0.9f,
+            roughness = 0.1f,
+            reflectance = 0.8f
+        )
+        waterNode = RenderableNode(engine).apply {
+            setGeometry(Plane.Builder()
+                .size(Size(1000f, 1000f)) // Even larger water
+                .build(engine))
+            setMaterialInstances(waterMaterial)
+            position = Position(0f, -1.0f, 0f)
+            isHittable = false
+        }
+
+        // Add more decor
+        val decors = listOf(
+            "models/Palm Tree.glb" to Position(-5f, 0f, -5f),
+            "models/Palm Tree.glb" to Position(5f, 0f, 8f),
+            "models/Palm Tree.glb" to Position(-15f, 0f, 15f),
+            "models/Rock.glb" to Position(-10f, -0.2f, 3f),
+            "models/Rock.glb" to Position(15f, -0.2f, -8f),
+            "models/Rock.glb" to Position(0f, -0.2f, -20f)
+        )
+
+        decors.forEach { (model, pos) ->
+            modelLoader.loadModelInstanceAsync(model) { instance ->
+                instance?.let {
+                    decorNodes.add(ModelNode(it, scaleToUnits = if (model.contains("Rock")) 2f else 4f).apply {
+                        position = pos
+                    })
+                }
+            }
+        }
     }
 
-    // Apply textures to island manually
+    // Apply textures to island manually with fallback
     LaunchedEffect(islandNode) {
         islandNode?.let { island ->
             val textures = mapOf(
@@ -230,10 +290,16 @@ fun FreeModeGameScreen(
                         
                         val materialInstance = materialLoader.createTextureInstance(texture)
                         
-                        island.renderableNodes.filter { it.name?.contains(nodeName, ignoreCase = true) == true }
-                            .forEach { renderable ->
-                                renderable.setMaterialInstances(materialInstance)
-                            }
+                        // If names don't match, apply Ground texture to everything as a fallback
+                        val targetNodes = island.renderableNodes.filter { 
+                            it.name?.contains(nodeName, ignoreCase = true) == true 
+                        }
+                        
+                        if (targetNodes.isEmpty() && nodeName == "Ground") {
+                            island.renderableNodes.forEach { it.setMaterialInstances(materialInstance) }
+                        } else {
+                            targetNodes.forEach { it.setMaterialInstances(materialInstance) }
+                        }
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
@@ -251,10 +317,11 @@ fun FreeModeGameScreen(
     }
 
     // Movement loop
-    LaunchedEffect(joystickOffset, cameraYaw, playerNode) {
+    LaunchedEffect(joystickOffset, cameraYaw, playerNode, islandNode) {
         if (joystickOffset != Offset.Zero && playerNode != null) {
             while (true) {
-                val speed = 0.4f // Increased speed
+                val speed = 0.3f
+                val walkableNodes = listOfNotNull(islandNode) + dockNodes
                 
                 // Calculate movement direction relative to camera yaw
                 val yawRad = Math.toRadians(cameraYaw.toDouble())
@@ -266,10 +333,23 @@ fun FreeModeGameScreen(
                 val dx = (joystickOffset.x * rightX + joystickOffset.y * forwardX) * speed
                 val dz = (joystickOffset.x * rightZ + joystickOffset.y * forwardZ) * speed
                 
-                playerPos = Offset(playerPos.x + dx, playerPos.y + dz)
-                
-                // Update rotation to face movement direction
-                playerRotation = Math.toDegrees(atan2(-dx.toDouble(), -dz.toDouble())).toFloat()
+                val nextX = playerPos.x + dx
+                val nextZ = playerPos.y + dz
+
+                // Boundary check: Raycast at next position
+                val ray = MathRay(
+                    Float3(nextX, 20f, nextZ),
+                    Float3(0f, -1f, 0f)
+                )
+                val hit = collisionSystem.hitTest(ray).firstOrNull { 
+                    walkableNodes.contains(it.node)
+                }
+
+                if (hit != null) {
+                    playerPos = Offset(nextX, nextZ)
+                    // Update rotation to face movement direction
+                    playerRotation = Math.toDegrees(atan2(-dx.toDouble(), -dz.toDouble())).toFloat()
+                }
                 
                 delay(16)
                 if (joystickOffset == Offset.Zero) break
@@ -296,27 +376,32 @@ fun FreeModeGameScreen(
             modelLoader = modelLoader,
             cameraNode = cameraNode,
             view = view,
-            childNodes = listOfNotNull(playerNode, islandNode),
+            isOpaque = false,
+            childNodes = listOfNotNull(playerNode, islandNode, waterNode) + dockNodes + decorNodes,
             collisionSystem = collisionSystem,
-            onFrame = { _ ->
+            onFrame = { frameTimeNanos ->
+                // Water animation
+                waterNode?.let { water ->
+                    val time = frameTimeNanos / 1_000_000_000f
+                    water.position = Position(0f, -1.0f + sin(time * 2f) * 0.05f, 0f)
+                }
+
                 playerNode?.let { node ->
                     // Grounding logic
-                    val island = islandNode
-                    if (island != null) {
-                        // Raycast down from above the player to find the island surface
-                        val ray = MathRay(
-                            Float3(node.position.x, 100f, node.position.z),
-                            Float3(0f, -1f, 0f)
-                        )
-                        val hitResult = collisionSystem.hitTest(ray)
-                        
-                        hitResult.firstOrNull { it.node == island }?.let { hit ->
-                            node.position = Position(node.position.x, hit.worldPosition.y, node.position.z)
-                        }
+                    val walkableNodes = listOfNotNull(islandNode) + dockNodes
+                    // Raycast down from above the player to find the surface height
+                    val ray = MathRay(
+                        Float3(node.position.x, 20f, node.position.z),
+                        Float3(0f, -1f, 0f)
+                    )
+                    val hitResult = collisionSystem.hitTest(ray)
+                    
+                    hitResult.firstOrNull { walkableNodes.contains(it.node) }?.let { hit ->
+                        node.position = Position(node.position.x, hit.worldPosition.y, node.position.z)
                     }
 
                     // Camera follow / Orbit
-                    val distance = 6f // Closer zoom
+                    val distance = 8f // Even further for better view
                     val yawRad = Math.toRadians(cameraYaw.toDouble())
                     val pitchRad = Math.toRadians(cameraPitch.toDouble())
                     
