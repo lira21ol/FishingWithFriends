@@ -16,19 +16,28 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.google.android.filament.Texture
+import dev.romainguy.kotlin.math.Float3
+import dev.romainguy.kotlin.math.Ray as MathRay
 import io.github.sceneview.Scene
+import io.github.sceneview.collision.CollisionSystem
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
 import io.github.sceneview.node.CameraNode
 import io.github.sceneview.node.ModelNode
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberEngine
+import io.github.sceneview.rememberMaterialLoader
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberNode
+import io.github.sceneview.rememberView
+import io.github.sceneview.texture.ImageTexture
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -79,18 +88,24 @@ fun CharacterSelectionScreen(
         // 3D Preview
         val engine = rememberEngine()
         val modelLoader = rememberModelLoader(engine)
-        val modelNode = remember(currentPreviewIdx) {
-            ModelNode(
-                modelInstance = modelLoader.createModelInstance(characters[currentPreviewIdx]),
-                scaleToUnits = 1.0f
-            )
+        var modelNode by remember(currentPreviewIdx) { mutableStateOf<ModelNode?>(null) }
+
+        LaunchedEffect(currentPreviewIdx) {
+            modelLoader.loadModelInstanceAsync(characters[currentPreviewIdx]) { instance ->
+                modelNode = instance?.let {
+                    ModelNode(
+                        modelInstance = it,
+                        scaleToUnits = 1.0f
+                    )
+                }
+            }
         }
 
         Scene(
             modifier = Modifier.fillMaxSize(),
             engine = engine,
             modelLoader = modelLoader,
-            childNodes = listOf(modelNode)
+            childNodes = listOfNotNull(modelNode)
         )
 
         Column(
@@ -152,40 +167,109 @@ fun FreeModeGameScreen(
     characterModel: String,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
+    val materialLoader = rememberMaterialLoader(engine)
     val cameraNode = rememberCameraNode(engine)
+    val view = rememberView(engine)
+    val collisionSystem = remember(view) { CollisionSystem(view) }
 
     var playerPos by remember { mutableStateOf(Offset(0f, 0f)) }
     var playerRotation by remember { mutableStateOf(0f) }
     var joystickOffset by remember { mutableStateOf(Offset.Zero) }
+    
+    // Camera rotation (Free camera)
+    var cameraYaw by remember { mutableStateOf(0f) }
+    var cameraPitch by remember { mutableStateOf(20f) }
 
-    // Player Node
-    val playerNode = rememberNode {
-        ModelNode(
-            modelInstance = modelLoader.createModelInstance(characterModel),
-            scaleToUnits = 0.3f
-        ).apply {
-            position = Position(0f, 0f, 0f)
+    var playerNode by remember { mutableStateOf<ModelNode?>(null) }
+    var islandNode by remember { mutableStateOf<ModelNode?>(null) }
+
+    LaunchedEffect(characterModel) {
+        modelLoader.loadModelInstanceAsync(characterModel) { instance ->
+            playerNode = instance?.let {
+                ModelNode(
+                    modelInstance = it,
+                    scaleToUnits = 0.3f
+                ).apply {
+                    position = Position(0f, 0f, 0f)
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        modelLoader.loadModelInstanceAsync("models/island/Island.glb") { instance ->
+            islandNode = instance?.let {
+                ModelNode(
+                    modelInstance = it,
+                    scaleToUnits = 50f
+                ).apply {
+                    position = Position(0f, -0.5f, 0f)
+                }
+            }
+        }
+    }
+
+    // Apply textures to island manually
+    LaunchedEffect(islandNode) {
+        islandNode?.let { island ->
+            val textures = mapOf(
+                "Ground" to "models/island/Ground.png",
+                "Palms" to "models/island/Palms.png",
+                "Tents" to "models/island/Tents.png"
+            )
+
+            textures.forEach { (nodeName, assetPath) ->
+                launch {
+                    try {
+                        val texture = ImageTexture.Builder()
+                            .bitmap(context.assets, assetPath)
+                            .build(engine)
+                        
+                        val materialInstance = materialLoader.createTextureInstance(texture)
+                        
+                        island.renderableNodes.filter { it.name?.contains(nodeName, ignoreCase = true) == true }
+                            .forEach { renderable ->
+                                renderable.setMaterialInstances(materialInstance)
+                            }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
         }
     }
 
     // Update player node position and rotation
-    LaunchedEffect(playerPos, playerRotation) {
-        playerNode.position = Position(playerPos.x, 0f, playerPos.y)
-        playerNode.rotation = Rotation(0f, playerRotation, 0f)
+    LaunchedEffect(playerPos, playerRotation, playerNode) {
+        playerNode?.let { node ->
+            node.position = Position(playerPos.x, node.position.y, playerPos.y)
+            node.rotation = Rotation(0f, playerRotation, 0f)
+        }
     }
 
     // Movement loop
-    LaunchedEffect(joystickOffset) {
-        if (joystickOffset != Offset.Zero) {
+    LaunchedEffect(joystickOffset, cameraYaw, playerNode) {
+        if (joystickOffset != Offset.Zero && playerNode != null) {
             while (true) {
-                val speed = 0.2f
-                val dx = joystickOffset.x * speed
-                val dy = joystickOffset.y * speed
+                val speed = 0.4f // Increased speed
                 
-                playerPos = Offset(playerPos.x + dx, playerPos.y + dy)
-                playerRotation = Math.toDegrees(atan2(-dx.toDouble(), -dy.toDouble())).toFloat()
+                // Calculate movement direction relative to camera yaw
+                val yawRad = Math.toRadians(cameraYaw.toDouble())
+                val forwardX = -sin(yawRad).toFloat()
+                val forwardZ = -cos(yawRad).toFloat()
+                val rightX = cos(yawRad).toFloat()
+                val rightZ = -sin(yawRad).toFloat()
+
+                val dx = (joystickOffset.x * rightX + joystickOffset.y * forwardX) * speed
+                val dz = (joystickOffset.x * rightZ + joystickOffset.y * forwardZ) * speed
+                
+                playerPos = Offset(playerPos.x + dx, playerPos.y + dz)
+                
+                // Update rotation to face movement direction
+                playerRotation = Math.toDegrees(atan2(-dx.toDouble(), -dz.toDouble())).toFloat()
                 
                 delay(16)
                 if (joystickOffset == Offset.Zero) break
@@ -193,105 +277,56 @@ fun FreeModeGameScreen(
         }
     }
 
-    // Environment Nodes
-    val environmentNodes = remember {
-        val nodes = mutableListOf<ModelNode>()
-        
-        // Ground - Grass Island
-        nodes.add(ModelNode(
-            modelInstance = modelLoader.createModelInstance("models/Grass.glb"),
-            scaleToUnits = 50f
-        ).apply {
-            position = Position(0f, -0.02f, 0f)
-        })
-
-        // 4 Docks
-        val dockDist = 22f
-        nodes.add(ModelNode(modelLoader.createModelInstance("models/Dock Long.glb"), scaleToUnits = 3f).apply { 
-            position = Position(0f, 0f, dockDist) 
-        })
-        nodes.add(ModelNode(modelLoader.createModelInstance("models/Dock Long.glb"), scaleToUnits = 3f).apply { 
-            position = Position(0f, 0f, -dockDist)
-            rotation = Rotation(0f, 180f, 0f)
-        })
-        nodes.add(ModelNode(modelLoader.createModelInstance("models/Dock Long.glb"), scaleToUnits = 3f).apply { 
-            position = Position(dockDist, 0f, 0f)
-            rotation = Rotation(0f, 90f, 0f)
-        })
-        nodes.add(ModelNode(modelLoader.createModelInstance("models/Dock Long.glb"), scaleToUnits = 3f).apply { 
-            position = Position(-dockDist, 0f, 0f)
-            rotation = Rotation(0f, -90f, 0f)
-        })
-
-        // Paths
-        for (i in 1..6) {
-            nodes.add(ModelNode(modelLoader.createModelInstance("models/Rock Path Round Wide.glb"), scaleToUnits = 2f).apply {
-                position = Position(0f, 0.01f, i * 3.5f)
-            })
-            nodes.add(ModelNode(modelLoader.createModelInstance("models/Rock Path Round Wide.glb"), scaleToUnits = 2f).apply {
-                position = Position(0f, 0.01f, -i * 3.5f)
-            })
-            nodes.add(ModelNode(modelLoader.createModelInstance("models/Rock Path Round Wide.glb"), scaleToUnits = 2f).apply {
-                position = Position(i * 3.5f, 0.01f, 0f)
-                rotation = Rotation(0f, 90f, 0f)
-            })
-            nodes.add(ModelNode(modelLoader.createModelInstance("models/Rock Path Round Wide.glb"), scaleToUnits = 2f).apply {
-                position = Position(-i * 3.5f, 0.01f, 0f)
-                rotation = Rotation(0f, 90f, 0f)
-            })
-        }
-
-        // Beach decoration
-        for (angle in 0 until 360 step 45) {
-            val rad = Math.toRadians(angle.toDouble())
-            val x = (cos(rad) * 20f).toFloat()
-            val z = (sin(rad) * 20f).toFloat()
-            nodes.add(ModelNode(modelLoader.createModelInstance("models/Palm Tree.glb"), scaleToUnits = 4f).apply {
-                position = Position(x, 0f, z)
-            })
-            nodes.add(ModelNode(modelLoader.createModelInstance("models/Rocks.glb"), scaleToUnits = 3f).apply {
-                position = Position(x * 1.1f, 0f, z * 1.1f)
-            })
-        }
-
-        // Ship and Treasure
-        nodes.add(ModelNode(modelLoader.createModelInstance("models/Ship.glb"), scaleToUnits = 10f).apply { 
-            position = Position(30f, -1.5f, 30f) 
-            rotation = Rotation(0f, 45f, 0f)
-        })
-        nodes.add(ModelNode(modelLoader.createModelInstance("models/Chest Gold.glb"), scaleToUnits = 2f).apply { 
-            position = Position(5f, 0f, 5f) 
-        })
-        
-        nodes
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF87CEEB)) // Sky Blue
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    // Rotate camera
+                    cameraYaw += dragAmount.x * 0.5f
+                    cameraPitch = (cameraPitch - dragAmount.y * 0.5f).coerceIn(5f, 80f)
+                }
+            }
     ) {
-        // Sea layer (simulated with a large colored box or just background)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF0077BE).copy(alpha = 0.5f)) // Sea Blue transparent overlay
-        )
-
         Scene(
             modifier = Modifier.fillMaxSize(),
             engine = engine,
             modelLoader = modelLoader,
             cameraNode = cameraNode,
-            childNodes = listOf(playerNode) + environmentNodes,
+            view = view,
+            childNodes = listOfNotNull(playerNode, islandNode),
+            collisionSystem = collisionSystem,
             onFrame = { _ ->
-                // Camera follow
-                cameraNode.position = Position(
-                    playerNode.position.x,
-                    playerNode.position.y + 7f,
-                    playerNode.position.z + 10f
-                )
-                cameraNode.lookAt(playerNode.position)
+                playerNode?.let { node ->
+                    // Grounding logic
+                    val island = islandNode
+                    if (island != null) {
+                        // Raycast down from above the player to find the island surface
+                        val ray = MathRay(
+                            Float3(node.position.x, 100f, node.position.z),
+                            Float3(0f, -1f, 0f)
+                        )
+                        val hitResult = collisionSystem.hitTest(ray)
+                        
+                        hitResult.firstOrNull { it.node == island }?.let { hit ->
+                            node.position = Position(node.position.x, hit.worldPosition.y, node.position.z)
+                        }
+                    }
+
+                    // Camera follow / Orbit
+                    val distance = 6f // Closer zoom
+                    val yawRad = Math.toRadians(cameraYaw.toDouble())
+                    val pitchRad = Math.toRadians(cameraPitch.toDouble())
+                    
+                    val camX = node.position.x + (distance * sin(yawRad) * cos(pitchRad)).toFloat()
+                    val camZ = node.position.z + (distance * cos(yawRad) * cos(pitchRad)).toFloat()
+                    val camY = node.position.y + (distance * sin(pitchRad)).toFloat() + 2f // Slightly higher camera
+
+                    cameraNode.position = Position(camX, camY, camZ)
+                    cameraNode.lookAt(Position(node.position.x, node.position.y + 1f, node.position.z))
+                }
             }
         )
 
@@ -314,7 +349,7 @@ fun FreeModeGameScreen(
                     colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.5f))
                 ) {
                     Text(
-                        text = "Free Mode - Utforska ön",
+                        text = "Free Mode - Svep för att rotera kameran",
                         color = Color.White,
                         modifier = Modifier.padding(8.dp)
                     )
