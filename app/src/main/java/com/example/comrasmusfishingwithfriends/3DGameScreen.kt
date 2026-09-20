@@ -44,6 +44,14 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 
 // ============================================================
 // DATA MODELS
@@ -234,7 +242,7 @@ fun FreeModeGameScreen(
     val view = rememberView(engine)
     val environment = rememberEnvironment(engine)
     val mainLightNode = rememberMainLightNode(engine) {
-        intensity = 250_000f 
+        intensity = 150_000f // Safer brightness to avoid bloom flickering
     }
 
     // --------------------------------------------------------
@@ -247,44 +255,43 @@ fun FreeModeGameScreen(
     var playerNode by remember { mutableStateOf<ModelNode?>(null) }
     var rodNode by remember { mutableStateOf<ModelNode?>(null) }
     
-    val worldNodes = remember { mutableStateListOf<ModelNode>() }
-    val dockNodes = remember { mutableStateListOf<ModelNode>() }
+    val allWorldNodes = remember { mutableStateListOf<Node>() }
     var waterNode by remember { mutableStateOf<RenderableNode?>(null) }
 
     var cameraYaw by remember { mutableFloatStateOf(0f) }
-    var cameraPitch by remember { mutableFloatStateOf(45f) } 
-    var cameraDistance by remember { mutableFloatStateOf(24f) }
+    var cameraPitch by remember { mutableFloatStateOf(40f) } 
+    var cameraDistance by remember { mutableFloatStateOf(32f) } 
     
-    var showFishingButton by remember { mutableStateOf(false) }
-
-    // --------------------------------------------------------
-    // RECALIBRATED WORLD SCALE (DIAGNOSTIC MODE)
-    // --------------------------------------------------------
-    val islandRadius = 30f
-
-    fun canWalkAt(x: Float, z: Float): Boolean {
-        val dist = sqrt(x * x + z * z)
-        
-        // Main island
-        if (dist <= islandRadius) return true
-        
-        // Docks (Recalibrated for scale 30)
-        // North
-        if (x in -5f..5f && z in -45f..-25f) return true
-        // South
-        if (x in -5f..5f && z in 25f..45f) return true
-        // East
-        if (z in -5f..5f && x in 25f..45f) return true
-        // West
-        if (z in -5f..5f && x in -45f..-25f) return true
-        
-        return false
+    // Optimized: Only recompose when fishing zone status changes
+    val showFishingButton by remember {
+        derivedStateOf {
+            val dist = sqrt(playerPosition.x * playerPosition.x + playerPosition.y * playerPosition.y)
+            dist > 65f
+        }
     }
 
-    // Initialize Camera
+    // Keyboard Zoom Support
+    val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
-        cameraNode.position = Position(0f, 30f, 40f)
-        cameraNode.lookAt(Position(0f, 0f, 0f))
+        focusRequester.requestFocus()
+    }
+
+    // --------------------------------------------------------
+    // LOGIC
+    // --------------------------------------------------------
+    val beachRadius = 65f
+
+    fun canWalkAt(x: Float, z: Float): Boolean {
+        val distance = sqrt(x * x + z * z)
+        if (distance <= beachRadius) return true
+        
+        // Docks (As tipped, generous zones)
+        if (x in -15f..15f && z in -100f..-50f) return true // North
+        if (x in -15f..15f && z in 50f..100f) return true  // South
+        if (x in 50f..100f && z in -15f..15f) return true  // East
+        if (x in -100f..-50f && z in -15f..15f) return true // West
+        
+        return false
     }
 
     // Load Player
@@ -292,8 +299,8 @@ fun FreeModeGameScreen(
         playerNode = null
         modelLoader.loadModelInstanceAsync(characterModel) { instance ->
             instance?.let {
-                playerNode = ModelNode(it, scaleToUnits = 4.0f).apply {
-                    position = Position(0f, 0.5f, 0f) 
+                playerNode = ModelNode(it, scaleToUnits = 4.8f).apply {
+                    position = Position(0f, 1f, 0f) 
                 }
             }
         }
@@ -304,79 +311,95 @@ fun FreeModeGameScreen(
         val rodType = EquipmentShop.availableRods.find { it.id == currentPlayer.currentRodId } ?: EquipmentShop.availableRods.first()
         modelLoader.loadModelInstanceAsync(rodType.modelPath) { instance ->
             instance?.let {
-                rodNode = ModelNode(it, scaleToUnits = 2.5f).apply {
+                rodNode = ModelNode(it, scaleToUnits = 3.2f).apply {
                     rotation = Rotation(0f, 0f, -20f)
                 }
             }
         }
     }
 
-    // Build World (DIAGNOSTIC & CLEAN)
+    // Build World
     LaunchedEffect(Unit) {
-        // 1. Create Opaque Ocean (Following Tip 3)
-        val waterMaterial = materialLoader.createColorInstance(
-            color = Color(0xFF1687A8),
-            metallic = 0.0f,
-            roughness = 0.4f,
-            reflectance = 0.5f
-        )
+        // High-Quality Materials
+        val groundMat = materialLoader.createColorInstance(Color(0xFF2E7D32), roughness = 0.8f) // Grass
+        val sandMat = materialLoader.createColorInstance(Color(0xFFF3E5AB), roughness = 0.9f) // Sand
+        val waterMat = materialLoader.createColorInstance(Color(0xFF00ACC1), roughness = 0.2f) // Ocean
+
+        // Terrain
+        allWorldNodes.add(RenderableNode(engine).apply {
+            setGeometry(Plane.Builder().size(Size(110f, 110f)).build(engine))
+            setMaterialInstances(groundMat)
+            position = Position(0f, 0.6f, 0f)
+        })
+        allWorldNodes.add(RenderableNode(engine).apply {
+            setGeometry(Plane.Builder().size(Size(170f, 170f)).build(engine))
+            setMaterialInstances(sandMat)
+            position = Position(0f, 0.1f, 0f)
+        })
+
+        // Ocean
         waterNode = RenderableNode(engine).apply {
-            setGeometry(Plane.Builder().size(Size(2000f, 2000f)).build(engine))
-            setMaterialInstances(waterMaterial)
-            position = Position(0f, -0.2f, 0f)
+            setGeometry(Plane.Builder().size(Size(10000f, 10000f)).build(engine))
+            setMaterialInstances(waterMat)
+            position = Position(0f, -0.6f, 0f)
             isHittable = false
         }
 
-        // 2. Define Level Layout (Recalibrated Scales - Following Tip 4 & 5)
-        val assets = listOf(
-            // TERRAIN (Following Tip 6: One terrain model to test scale)
-            WorldAsset(WorldAssetType.TERRAIN, "models/island/platform_grass.glb", Position(0f, 0f, 0f), scale = 40f),
-            WorldAsset(WorldAssetType.TERRAIN, "models/island/platform_beach.glb", Position(0f, -0.05f, 0f), Rotation(0f, 45f, 0f), scale = 55f),
-
-            // HOUSES (Following Tip: scale ≈ 8)
-            WorldAsset(WorldAssetType.BUILDING, "models/House.glb", Position(-10f, 0.2f, -10f), scale = 8f),
-            WorldAsset(WorldAssetType.BUILDING, "models/House.glb", Position(10f, 0.2f, -8f), Rotation(0f, 45f, 0f), scale = 7f),
+        // Layout
+        val assetsConfig = listOf(
+            // Houses
+            WorldAsset(WorldAssetType.BUILDING, "models/House.glb", Position(-18f, 0.6f, -18f), scale = 16f),
+            WorldAsset(WorldAssetType.BUILDING, "models/House.glb", Position(22f, 0.6f, -15f), Rotation(0f, -45f, 0f), scale = 14f),
+            WorldAsset(WorldAssetType.BUILDING, "models/House.glb", Position(0f, 0.6f, -48f), Rotation(0f, 180f, 0f), scale = 15f),
+            WorldAsset(WorldAssetType.BUILDING, "models/House.glb", Position(35f, 0.6f, 20f), Rotation(0f, 90f, 0f), scale = 12f),
             
-            // DOCKS (Following Tip: scale ≈ 10, connected to land)
-            WorldAsset(WorldAssetType.DOCK, "models/Dock Long.glb", Position(0f, -0.05f, -28f), Rotation(0f, 180f, 0f), scale = 10f),
-            WorldAsset(WorldAssetType.DOCK, "models/Dock Long.glb", Position(0f, -0.05f, 28f), Rotation(0f, 0f, 0f), scale = 10f),
-            WorldAsset(WorldAssetType.DOCK, "models/Dock Long.glb", Position(28f, -0.05f, 0f), Rotation(0f, 90f, 0f), scale = 10f),
-            WorldAsset(WorldAssetType.DOCK, "models/Dock Long.glb", Position(-28f, -0.05f, 0f), Rotation(0f, -90f, 0f), scale = 10f),
+            // Docks
+            WorldAsset(WorldAssetType.DOCK, "models/Dock Long.glb", Position(65f, 0f, 0f), Rotation(0f, 90f, 0f), scale = 35f),
+            WorldAsset(WorldAssetType.DOCK, "models/Dock Long.glb", Position(-65f, 0f, 0f), Rotation(0f, -90f, 0f), scale = 35f),
+            WorldAsset(WorldAssetType.DOCK, "models/Dock Long.glb", Position(0f, 0f, 65f), Rotation(0f, 0f, 0f), scale = 35f),
+            WorldAsset(WorldAssetType.DOCK, "models/Dock Long.glb", Position(0f, 0f, -65f), Rotation(0f, 180f, 0f), scale = 35f),
 
-            // VEGETATION (Following Tip: scale ≈ 5)
-            WorldAsset(WorldAssetType.VEGETATION, "models/Palm Tree.glb", Position(-20f, 0f, -15f), scale = 5f),
-            WorldAsset(WorldAssetType.VEGETATION, "models/Palm Tree.glb", Position(20f, 0f, -15f), scale = 5f),
-            WorldAsset(WorldAssetType.VEGETATION, "models/Palm Tree.glb", Position(-15f, 0f, 20f), scale = 5f),
-            WorldAsset(WorldAssetType.VEGETATION, "models/Palm Tree.glb", Position(15f, 0f, 20f), scale = 5f),
+            // Vegetation
+            WorldAsset(WorldAssetType.VEGETATION, "models/Palm Tree.glb", Position(-38f, 0.1f, -35f), scale = 18f),
+            WorldAsset(WorldAssetType.VEGETATION, "models/Palm Tree.glb", Position(38f, 0.1f, -35f), scale = 17f),
+            WorldAsset(WorldAssetType.VEGETATION, "models/Palm Tree.glb", Position(-52f, 0.1f, 38f), scale = 20f),
+            WorldAsset(WorldAssetType.VEGETATION, "models/Palm Tree.glb", Position(48f, 0.1f, 42f), scale = 18f),
+            WorldAsset(WorldAssetType.VEGETATION, "models/Palm Tree.glb", Position(-25f, 0.6f, 45f), scale = 19f),
+            WorldAsset(WorldAssetType.VEGETATION, "models/Palm Tree.glb", Position(28f, 0.6f, 45f), scale = 16f),
+            WorldAsset(WorldAssetType.VEGETATION, "models/Palm Tree.glb", Position(0f, 0.6f, 25f), scale = 15f),
+            WorldAsset(WorldAssetType.VEGETATION, "models/Palm Tree.glb", Position(-10f, 0.6f, -30f), scale = 14f),
 
-            // ROCKS (Following Tip: scale ≈ 4)
-            WorldAsset(WorldAssetType.ROCK, "models/island/rock_largeA.glb", Position(-25f, 0f, 5f), scale = 4f),
-            WorldAsset(WorldAssetType.ROCK, "models/island/rock_largeB.glb", Position(25f, 0f, 5f), scale = 4f),
-
-            // BOATS (Following Tip: Put them next to docks)
-            WorldAsset(WorldAssetType.BOAT, "models/Boat.glb", Position(5f, -0.2f, -35f), Rotation(0f, 180f, 0f), scale = 5f),
-            WorldAsset(WorldAssetType.BOAT, "models/Boat.glb", Position(35f, -0.2f, 5f), Rotation(0f, 90f, 0f), scale = 5f)
+            // Rocks
+            WorldAsset(WorldAssetType.ROCK, "models/island/rock_largeA.glb", Position(-58f, 0.1f, 15f), scale = 12f),
+            WorldAsset(WorldAssetType.ROCK, "models/island/rock_largeB.glb", Position(58f, 0.1f, 25f), scale = 13f),
+            WorldAsset(WorldAssetType.ROCK, "models/island/rock_largeA.glb", Position(22f, 0.1f, 62f), scale = 11f),
+            WorldAsset(WorldAssetType.ROCK, "models/island/rock_largeB.glb", Position(-22f, 0.1f, -62f), scale = 10f),
+            
+            // Boats
+            WorldAsset(WorldAssetType.BOAT, "models/Boat.glb", Position(100f, -0.6f, 20f), Rotation(0f, 45f, 0f), scale = 14f),
+            WorldAsset(WorldAssetType.BOAT, "models/Boat.glb", Position(-20f, -0.6f, -100f), Rotation(0f, 220f, 0f), scale = 14f)
         )
 
-        assets.forEach { asset ->
+        for (asset in assetsConfig) {
             modelLoader.loadModelInstanceAsync(asset.modelPath) { instance ->
                 instance?.let {
                     val node = ModelNode(it, scaleToUnits = asset.scale).apply {
                         position = asset.position
                         rotation = asset.rotation
                     }
-                    if (asset.type == WorldAssetType.DOCK) dockNodes.add(node) else worldNodes.add(node)
+                    allWorldNodes.add(node)
                 }
             }
+            delay(16)
         }
     }
 
-    // Movement Loop (Continuous)
+    // Movement Loop
     LaunchedEffect(Unit) {
         while (true) {
             val joystick = joystickOffset
             if (joystick != Offset.Zero) {
-                val speed = 0.5f
+                val speed = 0.8f 
                 val yawRad = Math.toRadians(cameraYaw.toDouble())
                 val forwardX = -sin(yawRad).toFloat()
                 val forwardZ = -cos(yawRad).toFloat()
@@ -399,12 +422,25 @@ fun FreeModeGameScreen(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF87CEEB))
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF73CFF2))
+            .focusRequester(focusRequester)
+            .focusable()
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown) {
+                    when (event.key) {
+                        Key.Z -> { cameraDistance = (cameraDistance + 2f).coerceAtMost(150f); true }
+                        Key.X -> { cameraDistance = (cameraDistance - 2f).coerceAtLeast(10f); true }
+                        else -> false
+                    }
+                } else false
+            }
             .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
                     change.consume()
-                    cameraYaw += dragAmount.x * 0.45f
-                    cameraPitch = (cameraPitch - dragAmount.y * 0.35f).coerceIn(10f, 85f)
+                    cameraYaw += dragAmount.x * 0.5f
+                    cameraPitch = (cameraPitch - dragAmount.y * 0.45f).coerceIn(10f, 85f)
                 }
             }
     ) {
@@ -414,18 +450,21 @@ fun FreeModeGameScreen(
             modelLoader = modelLoader,
             cameraNode = cameraNode,
             view = view,
-            isOpaque = true, // Following Tip 2: Use solid background for diagnostic
+            isOpaque = false, // Back to transparent to use Box background stably
             environment = environment,
             mainLightNode = mainLightNode,
-            childNodes = listOfNotNull(playerNode, rodNode, waterNode) + worldNodes + dockNodes,
+            childNodes = listOfNotNull(playerNode, rodNode, waterNode) + allWorldNodes,
             onFrame = { frameTimeNanos ->
                 val time = frameTimeNanos / 1_000_000_000f
-                
+                waterNode?.let { it.position = Position(0f, -0.6f + sin(time * 2.5f) * 0.04f, 0f) }
+
                 playerNode?.let { player ->
-                    // Simplified grounding for diagnostic scene
                     val dist = sqrt(playerPosition.x * playerPosition.x + playerPosition.y * playerPosition.y)
-                    val targetY = if (dist <= islandRadius) 0.2f else 0f
-                    
+                    val targetY = when {
+                        dist <= 52f -> 0.65f 
+                        dist <= 68f -> 0.15f 
+                        else -> 0.15f        
+                    }
                     player.position = Position(playerPosition.x, targetY, playerPosition.y)
                     player.rotation = Rotation(0f, playerRotation, 0f)
                     
@@ -433,23 +472,19 @@ fun FreeModeGameScreen(
                         val rad = Math.toRadians(playerRotation.toDouble())
                         val offX = (cos(rad) * 0.4 + sin(rad) * 0.2).toFloat()
                         val offZ = (-sin(rad) * 0.4 + cos(rad) * 0.2).toFloat()
-                        rod.position = Position(player.position.x + offX, player.position.y + 1.2f, player.position.z + offZ)
+                        rod.position = Position(player.position.x + offX, player.position.y + 1.3f, player.position.z + offZ)
                         rod.rotation = Rotation(0f, playerRotation - 20f, 0f)
                     }
 
-                    // Camera Follow (Following Tip 1: Corrected conventional 3rd person)
                     val yawRad = Math.toRadians(cameraYaw.toDouble())
                     val pitchRad = Math.toRadians(cameraPitch.toDouble())
                     val hDist = cameraDistance * cos(pitchRad)
                     val camX = player.position.x + (hDist * sin(yawRad)).toFloat()
                     val camZ = player.position.z + (hDist * cos(yawRad)).toFloat()
-                    val camY = player.position.y + (cameraDistance * sin(pitchRad)).toFloat() + 2.0f
+                    val camY = player.position.y + (cameraDistance * sin(pitchRad)).toFloat() + 5.5f
 
                     cameraNode.position = Position(camX, camY, camZ)
-                    cameraNode.lookAt(Position(player.position.x, player.position.y + 1.5f, player.position.z))
-                    
-                    // Specific distance to dock centers
-                    showFishingButton = dist > 24f && dist <= 40f
+                    cameraNode.lookAt(Position(player.position.x, player.position.y + 2.2f, player.position.z))
                 }
             }
         )
@@ -457,6 +492,18 @@ fun FreeModeGameScreen(
         // Overlay UI
         Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Button(onClick = onBack, modifier = Modifier.align(Alignment.TopStart)) { Text("Exit") }
+
+            Card(
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 40.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.5f))
+            ) {
+                Text(
+                    text = "🔍 Zoom: [X] In / [Z] Out",
+                    color = Color.White,
+                    modifier = Modifier.padding(8.dp),
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
 
             if (showFishingButton) {
                 Card(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 180.dp),
@@ -470,27 +517,5 @@ fun FreeModeGameScreen(
             Joystick(modifier = Modifier.align(Alignment.BottomStart).padding(bottom = 32.dp, start = 16.dp).size(150.dp),
                 onJoystickMove = { joystickOffset = it })
         }
-    }
-}
-
-@Composable
-fun Joystick(modifier: Modifier = Modifier, onJoystickMove: (Offset) -> Unit) {
-    var dragOffset by remember { mutableStateOf(Offset.Zero) }
-    Box(modifier = modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape).pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { dragOffset = Offset.Zero },
-                    onDragEnd = { dragOffset = Offset.Zero; onJoystickMove(Offset.Zero) },
-                    onDragCancel = { dragOffset = Offset.Zero; onJoystickMove(Offset.Zero) },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        val newOffset = dragOffset + dragAmount
-                        val maxRadius = 100f
-                        val distance = newOffset.getDistance()
-                        dragOffset = if (distance > maxRadius) newOffset * (maxRadius / distance) else newOffset
-                        onJoystickMove(Offset(dragOffset.x / maxRadius, dragOffset.y / maxRadius))
-                    })
-            }, contentAlignment = Alignment.Center) {
-        Box(modifier = Modifier.size(150.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.05f)))
-        Box(modifier = Modifier.offset { IntOffset(dragOffset.x.toInt(), dragOffset.y.toInt()) }.size(60.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.8f)))
     }
 }

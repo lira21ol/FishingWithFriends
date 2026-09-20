@@ -144,6 +144,45 @@ fun StartScreen(
                 modifier = Modifier.padding(bottom = 32.dp)
             )
 
+            Row(
+                modifier = Modifier.padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = {
+                        navController.navigate("village")
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50) // Green for village
+                    )
+                ) {
+                    Text(text = "Village")
+                }
+
+                Button(
+                    onClick = {
+                        navController.navigate("my_house")
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF9800) // Distinct orange for house
+                    )
+                ) {
+                    Text(text = "My House")
+                }
+
+                Button(
+                    onClick = {
+                        navController.navigate("town")
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2196F3) // Blue for town/island
+                    )
+                ) {
+                    Text(text = "Island")
+                }
+            }
+
             Button(
                 modifier = Modifier.padding(bottom = 16.dp),
                 onClick = {

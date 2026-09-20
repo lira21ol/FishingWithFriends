@@ -188,5 +188,35 @@ fun FishingApp() {
                 }
             }
         }
+
+        composable("my_house") {
+            currentPlayer?.let { player ->
+                MyHouseScreen(currentPlayer = player, navController = navController)
+            } ?: run {
+                LaunchedEffect(Unit) {
+                    navController.navigate("user_creation_screen")
+                }
+            }
+        }
+
+        composable("village") {
+            currentPlayer?.let { player ->
+                VillageScreen(currentPlayer = player, navController = navController)
+            } ?: run {
+                LaunchedEffect(Unit) {
+                    navController.navigate("user_creation_screen")
+                }
+            }
+        }
+
+        composable("town") {
+            currentPlayer?.let { player ->
+                TownScreen(currentPlayer = player, navController = navController)
+            } ?: run {
+                LaunchedEffect(Unit) {
+                    navController.navigate("user_creation_screen")
+                }
+            }
+        }
     }
 }
